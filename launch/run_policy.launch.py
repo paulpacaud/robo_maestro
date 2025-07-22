@@ -25,11 +25,11 @@ def launch_setup(context):
     )
 
     # Here we launch the executable
-    # This executable is the moveit_cmd.py file warn to specify if the robot is in simulation or not via the use_sim_time parameter
+    # This executable is the run_policy.py file warn to specify if the robot is in simulation or not via the use_sim_time parameter
     moveit_py_node = Node(
-        name="moveit_cmd",
+        name="run_policy",
         package="robo_maestro",
-        executable="moveit_cmd",
+        executable="run_policy",
         output="both",
         parameters=[moveit_config.to_dict(), {'use_sim_time': use_sim_time}],
 

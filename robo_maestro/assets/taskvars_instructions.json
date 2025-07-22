@@ -1,0 +1,174 @@
+{
+  "real_stack_cup+0": [
+    "stack the yellow cup on top of the pink cup",
+    "place the yellow cup onto the pink cup",
+    "put the yellow cup on top of the pink one",
+    "pick up and set the yellow cup down into the pink cup",
+    "create a stack of cups with the pink cup as its base and the yellow on top of it",
+    "keeping the pink cup on the table, stack the yellow one onto it"
+  ],
+  "real_stack_cup+1": [
+    "stack the navy cup on top of the yellow cup",
+    "place the navy cup onto the yellow cup",
+    "put the navy cup on top of the yellow one",
+    "pick up and set the navy cup down into the yellow cup",
+    "create a stack of cups with the yellow cup as its base and the navy on top of it",
+    "keeping the yellow cup on the table, stack the navy one onto it"
+  ],
+  "real_stack_cup+2": [
+    "stack the pink cup on top of the cyan cup",
+    "place the pink cup onto the cyan cup",
+    "put the pink cup on top of the cyan one",
+    "pick up and set the pink cup down into the cyan cup",
+    "create a stack of cups with the cyan cup as its base and the pink on top of it",
+    "keeping the cyan cup on the table, stack the pink one onto it"
+  ],
+  "real_stack_cup+3": [
+    "place the pink cup onto the black cup"
+  ],
+  "real_stack_cup+4": [
+    "place the red cup onto the yellow cup"
+  ],
+  "real_stack_cup+5": [
+    "place the black cup onto the orange cup"
+  ],
+  "real_put_fruits_in_plate+1": [
+  "put the fruit that is next to the pink plate, in the pink plate"
+  ],
+  "real_put_item_in_drawer+0": [
+    "open the drawer, then put the frog toy in the top part of the drawer"
+  ],
+  "real_put_item_in_drawer+1": [
+    "put the pink cube in the top part of the drawer",
+    "take the pink cube and put it in the top compartment of the drawer"
+  ],
+  "real_put_item_in_drawer+2": [
+    "put the baseball in the top part of the drawer",
+    "take the baseball and put it in the top compartment of the drawer"
+  ],
+  "real_open_drawer+0": [
+    "open top drawer",
+    "grip the top handle and pull the top drawer open",
+    "slide the top drawer open"
+  ],
+  "real_open_drawer+1": [
+    "open middle drawer",
+    "grip the middle handle and pull the middle drawer open",
+    "slide the middle drawer open"
+  ],
+  "real_open_drawer2+0": [
+    "open top drawer",
+    "grip the top handle and pull the top drawer open",
+    "slide the top drawer open"
+  ],
+  "real_open_drawer2+1": [
+    "open middle drawer",
+    "grip the middle handle and pull the middle drawer open",
+    "slide the middle drawer open"
+  ],
+  "real_put_item_in_cabinet+0": [
+    "put the rubik's cube in the top part of the cabinet",
+    "take the rubik's cube and put it in the top compartiment of the cabinet"
+  ],
+  "real_put_item_in_cabinet+1": [
+    "put the baseball in the bottom part of the cabinet",
+    "take the baseball and put it in the bottom compartment of the cabinet"
+  ],
+  "real_put_item_in_cabinet+2": [
+    "put the lemon in the top part of the cabinet",
+    "take the lemon and put it in the top compartment of the cabinet"
+  ],
+  "real_put_fruit_in_box+0": [
+    "put the strawberry in the cup"
+  ],
+  "real_put_two_fruits_in_box_plate+0": [
+    "put the strawberry in the box then put the banana in the pink plate",
+    "put the strawberry in the box then put the banana in the pink plate"
+  ],
+  "real_put_fruit_in_box+1": [
+    "put the peach in the box",
+    "take the peach and put it inside the box"
+  ],
+  "real_put_fruit_in_box+2": [
+    "put the banana in the box",
+    "take the banana and put it inside the box"
+  ],
+  "real_put_fruit_in_box+3": [
+    "put the lemon in the box",
+    "take the lemon and put it inside the box"
+  ],
+  "real_hang_mug+0": [
+    "take the green mug and put it on the middle part of the hanger",
+    "put the green mug on the middle part of the hanger"
+  ],
+  "real_hang_mug+1": [
+    "take the pink mug and put it on the middle part of the hanger",
+    "put the pink mug on the middle part of the hanger"
+  ],
+  "real_hang_mug+2": [
+    "take the blue mug and put it on the top part of the hanger",
+    "put the blue mug on the top part of the hanger"
+  ],
+  "real_stack_cups+0": [
+    "stack the cyan cup on top of the yellow cup, then stack the yellow cup on top of the red"
+  ],
+  "real_stack_cups+1": [
+    "create a stack of three cups: first, place the yellow cup inside the red cup, then the cyan cup on top"
+  ],
+  "real_give+1": [
+    "put the baguette on my hand"
+  ],
+  "real_stack_cup_spatial+0": [
+    "stack the cup next to the apple into the pink cup"
+  ],
+  "real_put_fruits_in_box+0": [
+    "put the plum in the box, then put the corn in the box"
+  ],
+  "real_put_food_in_box+0": [
+    "put the tuna can in the box, then put the corn in the box"
+  ],
+  "real_put_item_spatial_in_plate+0": [
+    "pick the most healthy food"
+  ],
+  "real_put_sweet_in_plate+0": [
+    "pick the  food"
+  ],
+  "real_put_items_in_drawer+0": [
+    "put the pink cube in the top part of the drawer, then put the baseball"
+  ],
+  "real_put_items_in_drawer+0": [
+    "put the pink cube in the top part of the drawer, then put the baseball"
+  ],
+  "real_sport+0": [
+    "I want to play sport, pick the item to play"
+  ],
+  "real_object_box+0": [
+    "Pick the object inside the plate"
+  ],
+  "real_pick_tool_gondola+0": [
+    "First, pick the smallest item to repair. Then, place the tool into box"
+  ],
+  "real_pick_fun_item+0": [
+    "Pick the object to play a game and have fun."
+  ],
+  "real_hungry+0": [
+    "Pick the object to eat."
+  ],
+  "real_put_carrot_in_container+0": [
+    "Put banana in the largest container"
+  ],
+  "real_put_carrot_in_container+1": [
+    "Put banana in the smallest container"
+  ],
+  "real_put_banana_in_plate+0": [
+    "What is the [color] of the plate on the napkin? Put the banana into [color] plate."
+  ],
+  "real_healthiest_banana_in_plate+0": [
+    "What is the healthiest [food]? Pick [food] and put it on the pink plate."
+  ],
+  "real_put_fruits_in_plate+0": ["put the grapes in the cyan plate, then put the banana in the pink plate"],
+  "real_put_foods_in_plate+0": ["put the croissant in the yellow plate, then put the grapes in the pink plate"],
+  "real_put_cup_in_box+0": ["Put the navy cup on the box"],
+  "real_put_keys_in_plate+0": ["Put the keys on the yellow plate"],
+  "real_put_broom_in_plate+0": ["Put the broom on the yellow plate"]
+}
