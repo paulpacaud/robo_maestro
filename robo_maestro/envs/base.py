@@ -4,17 +4,16 @@ At its core:
 # reset(): -> obs
 sets the environment in an initial state, beginning an episode
 
-# step(action) -> (obs, reward, success, msg)
+# step(action) -> (obs, reward, terminated, truncated, info)
 executes a selected action in the environment, and moves the simulation forward
 we deal with a real robot, so success is always False and reward is always 0
 limited by Truncation (max steps limit)
 
-# render() -> obs
+# _get_obs() -> obs
 visualizes the current state of the environment
 """
 import gymnasium as gym
 import rclpy
-from rclpy.node import Node
 
 from robo_maestro.core.robot import Robot
 from robo_maestro.core.tf import *
@@ -24,8 +23,6 @@ from robo_maestro.utils.helpers import *
 
 class BaseEnv(gym.Env):
     def __init__(self, cam_list: list[str]):
-        node = Node("RealRobot-BaseEnv-Node")
-
         # Robot init
         self.robot = Robot(WORKSPACE["left"], cam_list)
 
@@ -38,18 +35,18 @@ class BaseEnv(gym.Env):
             self.cam_info[f"intrinsics_{cam_name}"] = (
                 self.robot.cameras[cam_name].intrinsics)
 
-    def reset(self, action):
+    def reset(self):
         print("Returning to home config")
         # might need to stop_current_movement(), to see later
 
-        success = self.robot.go_to_pose(action)
+        success = self.robot.go_to_pose(DEFAULT_ROBOT_ACTION)
 
         if not success:
             raise RuntimeError("Moving the robot to default position failed")
 
-        obs = self.render()
+        obs = self._get_obs()
 
-        return obs
+        return obs, None
 
     def step(self, action):
         success = self.robot.go_to_pose(action)
@@ -57,15 +54,19 @@ class BaseEnv(gym.Env):
         if not success:
             raise RuntimeError("Moving the robot failed")
 
-        obs = self.render()
+        obs = self._get_obs()
         return (
             obs,
             0,
             False,
             None,
+            None
         )
 
-    def render(self, sync_record=False):
+    def _get_obs(self, sync_record=False):
+        # spin the robot’s camera/TF node once so all subscriptions fire
+        rclpy.spin_once(self.robot.node, timeout_sec=0.0)
+
         obs = {}
 
         gripper_pose = self.robot.eef_pose()
@@ -106,11 +107,11 @@ class BaseEnv(gym.Env):
 
             # gripper attention
             K = self.cam_info[f"intrinsics_{cam_name}"]["K"]
-            gr_px = project(gripper_pose, np.linalg.inv(world_T_cam), K)
+            gr_px = project(gripper_pose[:2], np.linalg.inv(world_T_cam), K)
             gr_x, gr_y = gr_px[0], gr_px[1]
             obs[f"gripper_uv_{cam_name}"] = [gr_x, gr_y]
 
-            obs["robot_info"] = self.robot.links_pose()
+        obs["robot_info"] = self.robot.links_pose()
         return obs
 
 

@@ -47,17 +47,13 @@ def resize(im, new_size, im_type="rgb"):
     h_resize = int(orig_h * ratio)
     w_resize = int(orig_w * ratio)
 
-    resize = Resize((h_resize, w_resize), interpolation=interpolation)
+    resizer = Resize((h_resize, w_resize), interpolation=interpolation)
 
-    new_im = resize(im)
+    new_im = resizer(im)
     return new_im, ratio
 
 
-def process_keystep(obs, links_bbox_file_path, cam_list=["bravo_camera", "charlie_camera", "left_camera"], crop_size=None):
-    real_robot_info_pkl = os.path.join(CODE_DIR, 'assets/real_robot_bbox_info.pkl')
-    with open(real_robot_info_pkl, "rb") as f:
-        links_bbox = pkl.load(f)
-
+def process_keystep(obs, links_bbox, cam_list=["bravo_camera", "charlie_camera", "alpha_camera"], crop_size=None):
     rgb = []
     pc = []
     gripper_pos = obs["gripper_pos"]

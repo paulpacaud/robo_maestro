@@ -120,14 +120,17 @@ class TFRecorder:
         """
         Return a geometry_msgs/TransformStamped like tf2lookup in ROS 1.
         """
-        stamp: Time = self.node.get_clock().now() if now else Time()
-        return self.tf_buffer.lookup_transform(
-            self._source_frame,
-            self._target_frame,
-            stamp,
-            timeout=Duration(seconds=timeout),
-        )
-
+        try:
+            stamp: Time = self.node.get_clock().now() if now else Time()
+            return self.tf_buffer.lookup_transform(
+                self._source_frame,
+                self._target_frame,
+                stamp,
+                timeout=Duration(seconds=timeout),
+            )
+        except tf2_ros.TransformException as e:
+            self.node.get_logger().error(f"TF lookup failed: {e}")
+            raise
 
 # ---------------------------------------------------------------------------
 class CameraPose(Camera):

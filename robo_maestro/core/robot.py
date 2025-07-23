@@ -25,6 +25,7 @@ def plan_and_execute(
         success = robot.execute(robot_trajectory, controllers=[])
     else:
         logger.error("Planning failed")
+        success = False
 
     time.sleep(sleep_time)
 
@@ -36,11 +37,15 @@ class Robot:
         arm = 'left'
         self.eef_frame = EEF_FRAME[arm]
         self.workspace = workspace
-        camera_and_tf_recorder_node = rclpy.create_node("camera_and_tf_recorder")
+        # create one node for all TF + camera subscriptions
+        self.node = rclpy.create_node("robo_maestro_controller")
 
-        self._eef_tf_recorder = TFRecorder(camera_and_tf_recorder_node, ROBOT_BASE_FRAME, self.eef_frame)
-        self._links_tf_recorder = {link: TFRecorder(camera_and_tf_recorder_node, ROBOT_BASE_FRAME, link) for link in ROBOT_LINKS[arm]}
-        self.joints_state_recorder = JointStateRecorder(camera_and_tf_recorder_node)
+        self._eef_tf_recorder = TFRecorder(self.node, ROBOT_BASE_FRAME, self.eef_frame)
+        self._links_tf_recorder = {
+                link: TFRecorder(self.node, ROBOT_BASE_FRAME, link)
+                for link in ROBOT_LINKS[arm]
+        }
+        self.joints_state_recorder = JointStateRecorder(self.node)
 
         # Cameras
         self.cam_list = cam_list
@@ -49,19 +54,20 @@ class Robot:
 
         for cam_name in cam_list:
             self.cameras[cam_name] = CameraPose(
-                node=camera_and_tf_recorder_node,
+                node=self.node,
                 topic=f"/{cam_name}/color/image_raw",
                 camera_frame=CAM_TF_TOPIC[cam_name]
             )
             self.depth_cameras[cam_name] = CameraPose(
-                node=camera_and_tf_recorder_node,
-                topic=f"{cam_name}/aligned_depth_to_color/image_raw",
+                node=self.node,
+                topic=f"/{cam_name}/aligned_depth_to_color/image_raw",
                 camera_frame=CAM_TF_TOPIC[cam_name]
             )
 
         # robot controller
-        self.ur = MoveItPy(node_name="moveit_py")
+        self.ur = MoveItPy(node=self.node)
         self.left_arm = self.ur.get_planning_component("left_arm")
+        self.left_gripper = self.ur.get_planning_component("left_gripper")
         self.logger = get_logger("run_policy")
 
         self.go_to_pose(DEFAULT_ROBOT_ACTION)
@@ -131,9 +137,17 @@ class Robot:
         left_pose_goal.pose.orientation.w = gripper_quat[3]
         self.left_arm.set_goal_state(pose_stamped_msg=left_pose_goal, pose_link="left_tool0")
 
-        success = plan_and_execute(self.ur, self.left_arm, self.logger, sleep_time=3.0)
+        gripper_state = "open" if action[7] == 1 else "close"
+        self.left_gripper.set_goal_state(
+            configuration_name=gripper_state
+        )
+
+        success_arm = plan_and_execute(self.ur, self.left_arm, self.logger, sleep_time=3.0)
+        # success_gripper = plan_and_execute(self.ur, self.left_gripper, self.logger, sleep_time=3.0)
+        success_gripper = True # hardcoded for simulation
+
         self.gripper_state = action[7]
 
-        # TODO: add safety checks against jumps in the trajectory
+        # TODO: add safety checks against jumps in the trajectory (pending Etienne)
 
-        return success
+        return success_arm and success_gripper
