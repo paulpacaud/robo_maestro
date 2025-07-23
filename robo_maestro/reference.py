@@ -10,41 +10,20 @@ import rclpy
 from rclpy.logging import get_logger
 
 # moveit python library
-from moveit.core.robot_state import RobotState
-from moveit.planning import (
-    MoveItPy,
-    MultiPipelinePlanRequestParameters,
-)
-import numpy as np
+from moveit.planning import MoveItPy
 from geometry_msgs.msg import PoseStamped
+import numpy as np
 # A simple function to plan and execute a motion
 
 def plan_and_execute(
     robot,
     planning_component,
     logger,
-    single_plan_parameters=None,
-    multi_plan_parameters=None,
     sleep_time=0.0,
 ):
     """Helper function to plan and execute a motion."""
-    # plan to goal
     logger.info("Planning trajectory")
-    if multi_plan_parameters is not None:
-        # multiple pipelines are used to plan the trajectory
-        # the planning component will use the first pipeline that returns a valid trajectory
-        plan_result = planning_component.plan(
-            multi_plan_parameters=multi_plan_parameters
-        )
-    elif single_plan_parameters is not None:
-        # single pipeline is used to plan the trajectory
-        # the planning component will use the pipeline specified in the parameters
-        plan_result = planning_component.plan(
-            single_plan_parameters=single_plan_parameters
-        )
-    else:
-        # no pipeline is specified, the planning component will use the default pipeline set in the srdf
-        plan_result = planning_component.plan()
+    plan_result = planning_component.plan()
 
     # execute the plan if it is valid trajectory
     if plan_result:

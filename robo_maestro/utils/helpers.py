@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import torch
 import pickle as pkl
@@ -5,6 +7,9 @@ from torchvision.transforms.functional import resize
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms import Resize
 from scipy.spatial.transform import Rotation
+
+from robo_maestro.utils.constants import CODE_DIR
+
 
 def euler_to_quat(euler, degrees):
     rotation = Rotation.from_euler("xyz", euler, degrees=degrees)
@@ -49,7 +54,8 @@ def resize(im, new_size, im_type="rgb"):
 
 
 def process_keystep(obs, links_bbox_file_path, cam_list=["bravo_camera", "charlie_camera", "left_camera"], crop_size=None):
-    with open("/home/rgarciap/catkin_ws/src/robotamer/src/robotamer/assets/real_robot_bbox_info.pkl", "rb") as f:
+    real_robot_info_pkl = os.path.join(CODE_DIR, 'assets/real_robot_bbox_info.pkl')
+    with open(real_robot_info_pkl, "rb") as f:
         links_bbox = pkl.load(f)
 
     rgb = []

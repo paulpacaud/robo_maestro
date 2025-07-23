@@ -11,9 +11,9 @@ import tap
 import gymnasium as gym
 import json
 import os
-
+import robo_maestro.envs
 from robo_maestro.utils.helpers import *
-from utils.constants import *
+from robo_maestro.utils.constants import *
 import rclpy
 from easydict import EasyDict
 import numpy as np
@@ -73,7 +73,12 @@ class PolicyServer:
         """
         print("Mock prediction called with batch:", batch)
 
-        action = DEFAULT_ROBOT_POS + np.random.randn(*DEFAULT_ROBOT_POS).astype(np.double)
+        # Simulate a slight change from DEFAULT_ROBOT_ACTION
+        action = np.array(DEFAULT_ROBOT_ACTION, dtype=np.float32)
+        action[0] += 0.05
+        action[1] += 0.05
+        action[2] += 0.05
+        action[-1] = 1 if action[-1] == 0 else 0
         cache = {}
 
         print('action', action)
@@ -94,8 +99,8 @@ class TaskEvaluator:
         self.save_path = os.path.join(DATA_DIR, 'run_policy_experiments', self.task + "+" + self.variation, f"episode_{self.episode_id}")
         self.policy_server = PolicyServer(server_addr)
 
-    def execute_step(self, step_id, obs, keystep_real):
-        if rclpy.ok():
+    def execute_step(self, step_id, obs, keystep_real, cache):
+        if not rclpy.ok():
             return None
             
         if step_id == 0:
@@ -134,9 +139,9 @@ class TaskEvaluator:
         print("Quaternion:", quat)
         print("Open gripper:", open_gripper)
         print("Rotation:", quat_to_euler(quat, True))
-        if rclpy.ok():
+        if not rclpy.ok():
             return None
-        obs, _, _, _ = self.env.move(pos, quat, open_gripper, only_cartesian=False)
+        obs, _, _, _ = self.env.step([pos, quat, open_gripper], only_cartesian=False)
 
         keystep_real = process_keystep(
             obs, 
@@ -145,10 +150,10 @@ class TaskEvaluator:
             crop_size=self.image_size
         )
 
-        if rclpy.ok():
+        if not rclpy.ok():
             return None
         
-        return keystep_real
+        return keystep_real, cache
 
 def main():
     args = Arguments().parse_args(known_only=True)
@@ -160,16 +165,11 @@ def main():
     instructions = taskvars_instructions[args.taskvar]
     links_bbox_file_path = os.path.join(CODE_DIR, 'assets/real_robot_bbox_info.pkl')
 
-    env = gym.make('RealRobot-Pick-v0',
-       cam_list=args.cam_list,
-       cam_async=False,
-       arm=args.arm,
-       version="wide",
-       depth=True,
-       pcd=True,
-       gripper_attn=True)
+    env = gym.make('RealRobot-BaseEnv',
+       cam_list=args.cam_list
+    )
 
-    obs = env.reset(gripper_pos=DEFAULT_ROBOT_POS)
+    obs = env.reset(DEFAULT_ROBOT_ACTION)
 
     keystep_real = process_keystep(
         obs,
@@ -178,15 +178,18 @@ def main():
         crop_size=args.image_size
     )
     evaluator = TaskEvaluator(env, task, variation, instructions, args.episode_id, links_bbox_file_path, args.cam_list, args.image_size, args.server_addr)
+    cache = None
 
     for step_id in range(MAX_STEPS):
-        keystep_real = evaluator.execute_step(step_id, obs, keystep_real)
+        keystep_real, cache = evaluator.execute_step(step_id, obs, keystep_real, cache)
         if keystep_real is None:
             break
 
 
 if __name__ == "__main__":
     try:
+        rclpy.init()
         main()
+        rclpy.shutdown()
     except KeyboardInterrupt:
-        pass
+        rclpy.shutdown()
