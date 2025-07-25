@@ -1,8 +1,6 @@
 import numpy as np
-from ament_index_python.packages import get_package_share_directory
 
 # PATHS
-CODE_DIR = get_package_share_directory('robo_maestro')
 DATA_DIR = "/home/ros/share/data"
 
 # WORKSPACE PARAMETERS

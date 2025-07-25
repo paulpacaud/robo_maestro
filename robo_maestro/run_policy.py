@@ -16,6 +16,7 @@ from ament_index_python.packages import get_package_share_directory
 from robo_maestro.utils.helpers import *
 from robo_maestro.utils.constants import *
 import rclpy
+from rclpy.node import Node
 from easydict import EasyDict
 import numpy as np
 from copy import deepcopy
@@ -34,7 +35,7 @@ class Arguments(tap.Tap):
     arch: str = "ptv3"
     save_obs_outs_dir: str = None
     checkpoint: str = None
-    taskvar: str = "real_push_buttons+0"
+    taskvar: str = "real_hungry+0"
     instr: str = None
     use_sem_ft: bool = False
     ip: str = "127.0.0.1"
@@ -122,7 +123,7 @@ class TaskEvaluator:
             'cache': cache,
         }
 
-        action, cache = self.policy_server.predict(batch)
+        action, cache = self.policy_server.mock_predict(batch)
 
         print('action', action)
         print("cache:", cache)
@@ -158,43 +159,86 @@ class TaskEvaluator:
         
         return keystep_real, cache
 
+
+class RunPolicyNode(Node):
+    def __init__(self):
+        super().__init__(
+            'run_policy_node',
+             allow_undeclared_parameters=True,
+             automatically_declare_parameters_from_overrides=True
+        )
+
+        self.args = Arguments().parse_args(known_only=True)
+        self.setup_environment()
+
+    def setup_environment(self):
+        # Load task configurations
+        taskvars_instructions = json.load(open(
+            os.path.join(get_package_share_directory('robo_maestro'),
+                         'assets', 'taskvars_instructions.json')
+        ))
+
+        self.task, self.variation = self.args.taskvar.split("+")
+        self.instructions = taskvars_instructions[self.args.taskvar]
+
+        # Load bbox info
+        links_bbox_file_path = os.path.join(
+            get_package_share_directory('robo_maestro'),
+            'assets', 'real_robot_bbox_info.pkl'
+        )
+        with open(links_bbox_file_path, "rb") as f:
+            self.links_bbox = pkl.load(f)
+
+        # Create environment
+        use_sim_time = self.get_parameter('use_sim_time').value
+        self.env = gym.make('RealRobot-BaseEnv',
+                            cam_list=self.args.cam_list,
+                            node=self,
+                            use_sim_time=use_sim_time
+                            )
+
+        # Initialize evaluator
+        self.evaluator = TaskEvaluator(
+            self.env, self.task, self.variation,
+            self.instructions, self.args.episode_id,
+            self.links_bbox, self.args.cam_list,
+            self.args.image_size, self.args.server_addr
+        )
+
+    def run(self):
+        obs, info = self.env.reset()
+
+        keystep_real = process_keystep(
+            obs,
+            links_bbox=self.links_bbox,
+            cam_list=self.args.cam_list,
+            crop_size=self.args.image_size
+        )
+
+        cache = None
+        for step_id in range(MAX_STEPS):
+            if not rclpy.ok():
+                break
+
+            rclpy.spin_once(self, timeout_sec=0.0)
+
+            result = self.evaluator.execute_step(
+                step_id, obs, keystep_real, cache
+            )
+            if result is None:
+                break
+
+            keystep_real, cache = result
+
+
 def main():
-    args = Arguments().parse_args(known_only=True)
+    rclpy.init()
+    node = RunPolicyNode()
 
-    taskvars_instructions = json.load(open(
-        os.path.join(CODE_DIR, 'assets/taskvars_instructions.json')
-    ))
-    task, variation = args.taskvar.split("+")
-    instructions = taskvars_instructions[args.taskvar]
-    links_bbox_file_path = os.path.join(CODE_DIR, 'assets/real_robot_bbox_info.pkl')
-    with open(links_bbox_file_path, "rb") as f:
-        links_bbox = pkl.load(f)
-
-    env = gym.make('RealRobot-BaseEnv',
-       cam_list=args.cam_list
-    )
-
-    obs, info = env.reset()
-
-    keystep_real = process_keystep(
-        obs,
-        links_bbox=links_bbox,
-        cam_list=args.cam_list,
-        crop_size=args.image_size
-    )
-    evaluator = TaskEvaluator(env, task, variation, instructions, args.episode_id, links_bbox, args.cam_list, args.image_size, args.server_addr)
-    cache = None
-
-    for step_id in range(MAX_STEPS):
-        keystep_real, cache = evaluator.execute_step(step_id, obs, keystep_real, cache)
-        if keystep_real is None:
-            break
-
-
-if __name__ == "__main__":
     try:
-        rclpy.init()
-        main()
-        rclpy.shutdown()
+        node.run()
     except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
         rclpy.shutdown()

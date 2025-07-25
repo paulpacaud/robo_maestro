@@ -43,10 +43,12 @@ def wait_for_message(node: Node, msg_type, topic: str, timeout: float | None = N
     def _cb(msg):
         if not future.done():
             future.set_result(msg)
-        sub.destroy()
 
     sub = node.create_subscription(msg_type, topic, _cb, 10)
-    rclpy.spin_until_future_complete(node, future, timeout_sec=timeout)
+    try:
+        rclpy.spin_until_future_complete(node, future, timeout_sec=timeout)
+    finally:
+        node.destroy_subscription(sub)
 
     if not future.done():
         raise TimeoutError(f"No message on {topic} within {timeout} s")
@@ -128,7 +130,8 @@ class TFRecorder:
                 stamp,
                 timeout=Duration(seconds=timeout),
             )
-        except tf2_ros.TransformException as e:
+        except (tf2_ros.TransformException, tf2_ros.LookupException,
+                tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             self.node.get_logger().error(f"TF lookup failed: {e}")
             raise
 

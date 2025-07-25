@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import torch
 import pickle as pkl
@@ -7,8 +5,6 @@ from torchvision.transforms.functional import resize
 from torchvision.transforms import InterpolationMode
 from torchvision.transforms import Resize
 from scipy.spatial.transform import Rotation
-
-from robo_maestro.utils.constants import CODE_DIR
 
 
 def euler_to_quat(euler, degrees):

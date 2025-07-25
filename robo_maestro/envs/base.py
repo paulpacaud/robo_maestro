@@ -22,9 +22,13 @@ from robo_maestro.utils.helpers import *
 
 
 class BaseEnv(gym.Env):
-    def __init__(self, cam_list: list[str]):
-        # Robot init
-        self.robot = Robot(WORKSPACE["left"], cam_list)
+    def __init__(self, cam_list: list[str], node=None, use_sim_time=False):
+        # Accept node and use_sim_time parameters
+        self.node = node
+        self.use_sim_time = use_sim_time
+
+        # Robot init - pass node and use_sim_time
+        self.robot = Robot(WORKSPACE["left"], cam_list, node, use_sim_time)
 
         # Camera init
         self.cam_list = cam_list
@@ -46,7 +50,7 @@ class BaseEnv(gym.Env):
 
         obs = self._get_obs()
 
-        return obs, None
+        return obs, {}
 
     def step(self, action):
         success = self.robot.go_to_pose(action)
@@ -59,14 +63,11 @@ class BaseEnv(gym.Env):
             obs,
             0,
             False,
-            None,
-            None
+            False,
+            {}
         )
 
     def _get_obs(self, sync_record=False):
-        # spin the robot’s camera/TF node once so all subscriptions fire
-        rclpy.spin_once(self.robot.node, timeout_sec=0.0)
-
         obs = {}
 
         gripper_pose = self.robot.eef_pose()

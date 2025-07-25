@@ -33,17 +33,17 @@ def plan_and_execute(
 
 
 class Robot:
-    def __init__(self, workspace, cam_list):
+    def __init__(self, workspace, cam_list, node=None, use_sim_time=False):
         arm = 'left'
         self.eef_frame = EEF_FRAME[arm]
         self.workspace = workspace
-        # create one node for all TF + camera subscriptions
-        self.node = rclpy.create_node("robo_maestro_controller")
+        self.use_sim_time = use_sim_time
+        self.node = node
 
         self._eef_tf_recorder = TFRecorder(self.node, ROBOT_BASE_FRAME, self.eef_frame)
         self._links_tf_recorder = {
-                link: TFRecorder(self.node, ROBOT_BASE_FRAME, link)
-                for link in ROBOT_LINKS[arm]
+            link: TFRecorder(self.node, ROBOT_BASE_FRAME, link)
+            for link in ROBOT_LINKS[arm]
         }
         self.joints_state_recorder = JointStateRecorder(self.node)
 
@@ -68,7 +68,7 @@ class Robot:
         self.ur = MoveItPy(node=self.node)
         self.left_arm = self.ur.get_planning_component("left_arm")
         self.left_gripper = self.ur.get_planning_component("left_gripper")
-        self.logger = get_logger("run_policy")
+        self.logger = self.node.get_logger()
 
         self.go_to_pose(DEFAULT_ROBOT_ACTION)
         self.gripper_state = 0
@@ -143,8 +143,14 @@ class Robot:
         )
 
         success_arm = plan_and_execute(self.ur, self.left_arm, self.logger, sleep_time=3.0)
-        # success_gripper = plan_and_execute(self.ur, self.left_gripper, self.logger, sleep_time=3.0)
-        success_gripper = True # hardcoded for simulation
+
+        if self.use_sim_time:
+            # Skip actual gripper control in simulation
+            success_gripper = True
+            self.logger.info("Skipping gripper execution in simulation")
+        else:
+            # Execute gripper control on real robot
+            success_gripper = plan_and_execute(self.ur, self.left_gripper, self.logger, sleep_time=3.0)
 
         self.gripper_state = action[7]
 
