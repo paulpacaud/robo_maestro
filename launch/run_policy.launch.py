@@ -31,7 +31,7 @@ def launch_setup(context):
         executable="run_policy",
         output="both",
         parameters=[moveit_config.to_dict(), {'use_sim_time': use_sim_time}],
-
+        arguments=["--ros-args", "--log-level", "WARN"],
     )
 
     return [

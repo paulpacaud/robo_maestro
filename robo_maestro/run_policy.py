@@ -15,6 +15,7 @@ import robo_maestro.envs
 from ament_index_python.packages import get_package_share_directory
 from robo_maestro.utils.helpers import *
 from robo_maestro.utils.constants import *
+from robo_maestro.utils.logger import log_info, log_warn, log_error, log_debug
 import rclpy
 from rclpy.node import Node
 from easydict import EasyDict
@@ -64,8 +65,8 @@ class PolicyServer:
         action = output['action']
         cache = output['cache']
 
-        print('action', action)
-        print("cache:", cache)
+        log_info('action', action)
+        log_info("cache:", cache)
 
         return action, cache
 
@@ -73,7 +74,7 @@ class PolicyServer:
         """
         Mock prediction function to simulate server response.
         """
-        print("Mock prediction called with batch:", batch)
+        log_info("Mock prediction called with batch:", batch)
 
         # Simulate a slight change from DEFAULT_ROBOT_ACTION
         action = np.array(DEFAULT_ROBOT_ACTION, dtype=np.float32)
@@ -83,8 +84,8 @@ class PolicyServer:
         action[-1] = 1 if action[-1] == 0 else 0
         cache = {}
 
-        print('action', action)
-        print("cache:", cache)
+        log_info('action', action)
+        log_info("cache:", cache)
 
         return action, cache
 
@@ -125,8 +126,8 @@ class TaskEvaluator:
 
         action, cache = self.policy_server.mock_predict(batch)
 
-        print('action', action)
-        print("cache:", cache)
+        log_info('action', action)
+        log_info("cache:", cache)
 
         keystep_real["action"] = action
 
@@ -136,13 +137,13 @@ class TaskEvaluator:
         quat = deepcopy(action[3:7]).astype(np.double)
         open_gripper = action[7] >= 0.5
 
-        print('action', action)
-        print("Predicting step:", step_id, f"Open gripper {open_gripper}")
+        log_info('action', action)
+        log_info("Predicting step:", step_id, f"Open gripper {open_gripper}")
 
-        print("Position:", pos)
-        print("Quaternion:", quat)
-        print("Open gripper:", open_gripper)
-        print("Rotation:", quat_to_euler(quat, True))
+        log_info("Position:", pos)
+        log_info("Quaternion:", quat)
+        log_info("Open gripper:", open_gripper)
+        log_info("Rotation:", quat_to_euler(quat, True))
         if not rclpy.ok():
             return None
         obs, _, _, _, _ = self.env.step([pos, quat, open_gripper])
@@ -191,11 +192,13 @@ class RunPolicyNode(Node):
 
         # Create environment
         use_sim_time = self.get_parameter('use_sim_time').value
-        self.env = gym.make('RealRobot-BaseEnv',
+        env = gym.make('RealRobot-BaseEnv',
                             cam_list=self.args.cam_list,
                             node=self,
-                            use_sim_time=use_sim_time
+                            use_sim_time=use_sim_time,
+                            disable_env_checker = True, # skip need for defining action and observation spaces
                             )
+        self.env = env.unwrapped if hasattr(env, 'unwrapped') else env
 
         # Initialize evaluator
         self.evaluator = TaskEvaluator(
@@ -206,7 +209,18 @@ class RunPolicyNode(Node):
         )
 
     def run(self):
+        pos, quat, grip = self.env.robot.eef_pose()
+        log_info(
+            f"Initial EEF pose: pos={pos}, quat={quat}, gripper_open={bool(grip)}"
+        )
+
         obs, info = self.env.reset()
+
+        pos, quat, grip = self.env.robot.eef_pose()
+        log_info(
+            f"Initial EEF pose: pos={pos}, quat={quat}, gripper_open={bool(grip)}"
+        )
+
 
         keystep_real = process_keystep(
             obs,
@@ -217,6 +231,7 @@ class RunPolicyNode(Node):
 
         cache = None
         for step_id in range(MAX_STEPS):
+            log_info(f"Step {step_id}/{MAX_STEPS-1}")
             if not rclpy.ok():
                 break
 

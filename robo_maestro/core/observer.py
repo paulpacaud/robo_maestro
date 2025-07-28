@@ -17,6 +17,7 @@ from tf_transformations import euler_from_quaternion
 import tf2_ros
 
 from robo_maestro.utils.constants import ROBOT_BASE_FRAME
+from robo_maestro.utils.logger import log_error
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ class Camera:
                     node,
                     CameraInfo,
                     self._info_topic,
-                    timeout = 2,
+                    timeout = 30,
             )
         except TimeoutError as err:
             raise RuntimeError(
@@ -132,7 +133,7 @@ class TFRecorder:
             )
         except (tf2_ros.TransformException, tf2_ros.LookupException,
                 tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            self.node.get_logger().error(f"TF lookup failed: {e}")
+            log_error(f"TF lookup failed: {e}")
             raise
 
 # ---------------------------------------------------------------------------
@@ -185,25 +186,3 @@ class JointStateRecorder:
             joint_names=msg.name,
             joint_velocity=msg.velocity,
         )
-
-
-# ---------------------------------------------------------------------------
-# Quick smoke‑test / example usage
-# ---------------------------------------------------------------------------
-def main():
-    rclpy.init()
-    node = rclpy.create_node("camera_and_tf_recorder")
-
-    cam = CameraPose(node,
-                     topic="/camera/color/image_raw",
-                     camera_frame="camera_link")
-
-    img, (pos, rpy) = cam.record_image(timeout=2.0)
-    node.get_logger().info(f"Camera pose: {pos} m, {rpy} rad")
-
-    node.destroy_node()
-    rclpy.shutdown()
-
-
-if __name__ == "__main__":
-    main()

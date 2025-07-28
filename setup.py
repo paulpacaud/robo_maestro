@@ -44,7 +44,6 @@ setup(
     maintainer_email='paul.pacaud@inria.fr',
     description='robo_maestro: Python Package to interact with Paris Robotics Lab UR5',
     license='Apache-2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'run_policy = robo_maestro.run_policy:main'

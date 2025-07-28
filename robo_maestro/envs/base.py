@@ -19,6 +19,7 @@ from robo_maestro.core.robot import Robot
 from robo_maestro.core.tf import *
 from robo_maestro.utils.constants import *
 from robo_maestro.utils.helpers import *
+from robo_maestro.utils.logger import log_info
 
 
 class BaseEnv(gym.Env):
@@ -39,11 +40,16 @@ class BaseEnv(gym.Env):
             self.cam_info[f"intrinsics_{cam_name}"] = (
                 self.robot.cameras[cam_name].intrinsics)
 
-    def reset(self):
-        print("Returning to home config")
+        self.logger = self.node.get_logger()
+
+    def reset(self, *, seed: int | None = None, options: dict | None = None):
+        super().reset(seed=seed)
+        if options is None:
+            options = {}
+        log_info("Returning to home config")
         # might need to stop_current_movement(), to see later
 
-        success = self.robot.go_to_pose(DEFAULT_ROBOT_ACTION)
+        success = self.robot.reset()
 
         if not success:
             raise RuntimeError("Moving the robot to default position failed")

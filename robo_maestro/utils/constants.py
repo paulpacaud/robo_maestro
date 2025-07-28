@@ -11,7 +11,9 @@ WORKSPACE = {
 
 
 # ROBOT CONTROL PARAMETERS
-DEFAULT_ROBOT_ACTION = [-0.1876253 ,  0.18788611,  0.11547332, 0, 1, 0, 0, 0] # corresponds to an orientation of [pi, 0, pi] in euler angles. The gripper is open (0)
+DEFAULT_ROBOT_ACTION = [-0.25,  0,  0.5, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
+# corresponds to an orientation of [pi, 0, pi] in euler angles. The gripper is open (0)
+# the quaternions must satisfy the unit quaternion constraint (the sum of squares should equal 1).
 EEF_FRAME = {"left": "left_gripper_grasp_frame", "right": "right_gripper_grasp_frame"}
 MAX_VELOCITY_SCALING_FACTOR = 0.2
 MAX_ACCELERATION_SCALING_FACTOR = 0.2
