@@ -7,6 +7,7 @@ from launch.actions import DeclareLaunchArgument,OpaqueFunction
 from launch.substitutions import LaunchConfiguration
 from moveit_configs_utils import MoveItConfigsBuilder
 from ament_index_python.packages import get_package_share_directory
+import os
 
 def launch_setup(context):
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
@@ -15,7 +16,6 @@ def launch_setup(context):
     moveit_config = (
         MoveItConfigsBuilder(robot_name="mantis", package_name="prl_ur5_moveit")
         .robot_description(file_path="config/mantis.urdf.xacro")
-        
         .moveit_cpp(
             file_path=get_package_share_directory("robo_maestro")
             + "/config/planner.yaml"

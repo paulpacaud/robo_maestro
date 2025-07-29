@@ -70,14 +70,14 @@ class PolicyServer:
 
         return action, cache
 
-    def mock_predict(self, batch):
+    def mock_predict(self, batch, step_id):
         """
         Mock prediction function to simulate server response.
         """
         log_info(f"Mock prediction called with batch {batch.keys()}")
 
         # randomly pick MOCK_ROBOT_ACTION_1 or MOCK_ROBOT_ACTION_2
-        if np.random.rand() < 0.5:
+        if step_id % 2 == 0:
             action = np.array(MOCK_ROBOT_ACTION_1, dtype=np.float32)
         else:
             action = np.array(MOCK_ROBOT_ACTION_2, dtype=np.float32)
@@ -124,7 +124,7 @@ class TaskEvaluator:
             'cache': cache,
         }
 
-        action, cache = self.policy_server.mock_predict(batch)
+        action, cache = self.policy_server.mock_predict(batch, step_id)
 
         keystep_real["action"] = action
 
