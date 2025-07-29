@@ -209,18 +209,7 @@ class RunPolicyNode(Node):
         )
 
     def run(self):
-        pos, quat, grip = self.env.robot.eef_pose()
-        log_info(
-            f"Initial EEF pose: pos={pos}, quat={quat}, gripper_open={bool(grip)}"
-        )
-
         obs, info = self.env.reset()
-
-        pos, quat, grip = self.env.robot.eef_pose()
-        log_info(
-            f"Initial EEF pose: pos={pos}, quat={quat}, gripper_open={bool(grip)}"
-        )
-
 
         keystep_real = process_keystep(
             obs,

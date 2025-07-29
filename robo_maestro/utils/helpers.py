@@ -6,6 +6,8 @@ from torchvision.transforms import InterpolationMode
 from torchvision.transforms import Resize
 from scipy.spatial.transform import Rotation
 
+from robo_maestro.utils.logger import log_info
+
 
 def euler_to_quat(euler, degrees):
     rotation = Rotation.from_euler("xyz", euler, degrees=degrees)
@@ -50,6 +52,7 @@ def resize(im, new_size, im_type="rgb"):
 
 
 def process_keystep(obs, links_bbox, cam_list=["bravo_camera", "charlie_camera", "alpha_camera"], crop_size=None):
+    log_info("Processing keystep")
     rgb = []
     pc = []
     gripper_pos = obs["gripper_pos"]

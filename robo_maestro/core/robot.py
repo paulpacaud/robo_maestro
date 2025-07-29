@@ -37,32 +37,9 @@ class CartesianClient(Node):
         if resp.error_code.val == resp.error_code.SUCCESS and resp.fraction > 0.0:
             return resp.solution            # moveit_msgs/RobotTrajectory
         else:
+            log_error(f"Cartesian planning failed")
             raise RuntimeError(f"Cartesian planning failed: "
                                f"{resp.error_code.val}, fraction={resp.fraction}")
-
-
-def plan_and_execute(
-    robot,
-    planning_component,
-    sleep_time=0.0,
-):
-    """Helper function to plan and execute a motion."""
-    log_info("Planning trajectory")
-    plan_result = planning_component.plan()
-
-    # execute the plan if it is valid trajectory
-    if plan_result:
-        log_info("Executing plan")
-        robot_trajectory = plan_result.trajectory
-        success = robot.execute(robot_trajectory, controllers=[])
-    else:
-        log_error("Planning failed")
-        success = False
-
-    time.sleep(sleep_time)
-
-    log_info(f"Plan execution {'succeeded' if success else 'failed'}")
-    return success
 
 
 class Robot:
@@ -107,7 +84,30 @@ class Robot:
         self.cartesian_client = CartesianClient()
         self.reset()
 
+    def _plan_and_execute(
+            self,
+            robot,
+            planning_component,
+            sleep_time=0.0,
+    ):
+        """Helper function to plan and execute a motion."""
+        group_name = planning_component.planning_group_name
+        log_info(f"Planning trajectory for {group_name}")
+        plan_result = planning_component.plan()
 
+        # execute the plan if it is valid trajectory
+        if plan_result:
+            log_info(f"Executing plan for {group_name}")
+            robot_trajectory = plan_result.trajectory
+            success = robot.execute(robot_trajectory, controllers=[])
+        else:
+            log_error(f"Planning failed for {group_name}")
+            success = False
+
+        time.sleep(sleep_time)
+
+        log_info(f"Plan execution for {group_name} {'succeeded' if success else 'failed'}")
+        return success
 
     def eef_pose(self):
         eef_tf = self._eef_tf_recorder.record_tf().transform
@@ -124,6 +124,10 @@ class Robot:
             ]),
             self.gripper_state
         ]
+
+        log_info(
+            f"current EEF: pos={eef_pose[0]}, quat={eef_pose[1]}, gripper_open={bool(eef_pose[2])}"
+        )
         return eef_pose
 
     def joints_state(self):
@@ -161,7 +165,7 @@ class Robot:
         """
         Move to `action`. If `cartesian=True`, force straight-line Cartesian path.
         """
-        log_info(f"go_to_pose called w/ action: {action}")
+        log_info(f"target action: \n {action}")
 
         target_pos   = self._limit_position(action[:3])
         target_quat  = action[3:7]
@@ -182,7 +186,13 @@ class Robot:
         return success
 
     def reset(self):
-        self.go_to_pose(DEFAULT_ROBOT_ACTION, cartesian=True)
+        log_info("resetting Robot")
+        success = self.go_to_pose(DEFAULT_ROBOT_ACTION, cartesian=True)
+        if not success:
+            log_error("Moving the robot failed during reset")
+            raise RuntimeError("Moving the robot failed")
+
+        return success
 
     def _cartesian_plan(self, target_pos, target_quat):
         """Return a PlanSolution‑like shim whose .trajectory
@@ -212,7 +222,7 @@ class Robot:
         goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w = map(float,
                                                                                                                  target_quat)
         self.left_arm.set_goal_state(pose_stamped_msg=goal, pose_link="left_tool0")
-        success_arm = plan_and_execute(self.ur, self.left_arm, sleep_time=3.0)
+        success_arm = self._plan_and_execute(self.ur, self.left_arm, sleep_time=3.0)
 
         # Gripper
         gripper_state = "open" if self.gripper_state == 0 else "close"
@@ -221,7 +231,7 @@ class Robot:
             success_gripper = True
             log_info("Skipping gripper execution in simulation")
         else:
-            success_gripper = plan_and_execute(self.ur, self.left_gripper, sleep_time=3.0)
+            success_gripper = self._plan_and_execute(self.ur, self.left_gripper, sleep_time=3.0)
         self.gripper_state = 1 if gripper_state == "open" else 0
 
         return success_arm and success_gripper

@@ -19,7 +19,7 @@ from robo_maestro.core.robot import Robot
 from robo_maestro.core.tf import *
 from robo_maestro.utils.constants import *
 from robo_maestro.utils.helpers import *
-from robo_maestro.utils.logger import log_info
+from robo_maestro.utils.logger import log_info, log_error
 
 
 class BaseEnv(gym.Env):
@@ -43,25 +43,24 @@ class BaseEnv(gym.Env):
         self.logger = self.node.get_logger()
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
+        # might need to stop_current_movement() as in robotamer, to see later
         super().reset(seed=seed)
         if options is None:
             options = {}
-        log_info("Returning to home config")
-        # might need to stop_current_movement(), to see later
 
         success = self.robot.reset()
-
-        if not success:
-            raise RuntimeError("Moving the robot to default position failed")
 
         obs = self._get_obs()
 
         return obs, {}
 
     def step(self, action):
+        self.robot.eef_pose()
+
         success = self.robot.go_to_pose(action)
 
         if not success:
+            log_error("Failed to move the robot")
             raise RuntimeError("Moving the robot failed")
 
         obs = self._get_obs()
