@@ -15,31 +15,34 @@ import time
 
 from robo_maestro.utils.logger import log_info, log_error, log_warn
 
-class CartesianClient(Node):
-    def __init__(self):
-        super().__init__("cartesian_client")
-        self.cli = self.create_client(GetCartesianPath,
-                                      "/compute_cartesian_path")
-        self.cli.wait_for_service()
 
-    def plan(self, group: str, waypoints: list[Pose],
-             eef_step: float = 0.01, jump_thresh: float = 0.0):
-        req = GetCartesianPath.Request()
-        req.group_name      = group
-        req.header.frame_id = "prl_ur5_base"
-        req.waypoints       = waypoints
-        req.max_step        = eef_step
-        req.jump_threshold  = jump_thresh
-        req.avoid_collisions = True     # or False
-        future = self.cli.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        resp = future.result()
-        if resp.error_code.val == resp.error_code.SUCCESS and resp.fraction > 0.0:
-            return resp.solution            # moveit_msgs/RobotTrajectory
-        else:
-            log_error(f"Cartesian planning failed")
-            raise RuntimeError(f"Cartesian planning failed: "
-                               f"{resp.error_code.val}, fraction={resp.fraction}")
+
+
+# class CartesianClient(Node):
+#     def __init__(self):
+#         super().__init__("cartesian_client")
+#         self.cli = self.create_client(GetCartesianPath,
+#                                       "/compute_cartesian_path")
+#         self.cli.wait_for_service()
+#
+#     def plan(self, group: str, waypoints: list[Pose],
+#              eef_step: float = 0.01, jump_thresh: float = 0.0):
+#         req = GetCartesianPath.Request()
+#         req.group_name      = group
+#         req.header.frame_id = "prl_ur5_base"
+#         req.waypoints       = waypoints
+#         req.max_step        = eef_step
+#         req.jump_threshold  = jump_thresh
+#         req.avoid_collisions = True     # or False
+#         future = self.cli.call_async(req)
+#         rclpy.spin_until_future_complete(self, future)
+#         resp = future.result()
+#         if resp.error_code.val == resp.error_code.SUCCESS and resp.fraction > 0.0:
+#             return resp.solution            # moveit_msgs/RobotTrajectory
+#         else:
+#             log_error(f"Cartesian planning failed")
+#             raise RuntimeError(f"Cartesian planning failed: "
+#                                f"{resp.error_code.val}, fraction={resp.fraction}")
 
 
 class Robot:
@@ -81,8 +84,30 @@ class Robot:
 
         self.gripper_state = 0
         log_info("Robot initialized with workspace")
-        self.cartesian_client = CartesianClient()
+        # self.cartesian_client = CartesianClient()
+
+        self._wait_for_controllers()
         self.reset()
+
+    def _wait_for_controllers(self, timeout=30.0):
+        """Wait for trajectory controllers to be ready."""
+        from rclpy.action import ActionClient
+        from control_msgs.action import FollowJointTrajectory
+
+        log_info("Waiting for trajectory controllers...")
+
+        # Controllers to check
+        controllers = [
+            '/left_joint_trajectory_controller/follow_joint_trajectory',
+        ]
+
+        for controller in controllers:
+            client = ActionClient(self.node, FollowJointTrajectory, controller)
+            if not client.wait_for_server(timeout_sec=timeout):
+                log_error(f"Controller {controller} not available after {timeout}s")
+                raise RuntimeError(f"Controller {controller} not available")
+            log_info(f"Controller {controller} is ready")
+            client.destroy()
 
     def _plan_and_execute(
             self,
@@ -157,7 +182,7 @@ class Robot:
             new_coord = min(max(coord, self.workspace[0][i]), self.workspace[1][i])
             new_position.append(new_coord)
 
-        if position != new_position:
+        if not np.array_equal(position, new_position):
             log_info(f"Safety _limit_position() function called and limited  the pos to: {new_position}")
         return new_position
 
@@ -194,21 +219,21 @@ class Robot:
 
         return success
 
-    def _cartesian_plan(self, target_pos, target_quat):
-        """Return a PlanSolution‑like shim whose .trajectory
-           is a moveit.core.robot_trajectory.RobotTrajectory."""
-        wp = Pose()
-        wp.position.x, wp.position.y, wp.position.z = map(float, target_pos)
-        wp.orientation.x, wp.orientation.y, wp.orientation.z, wp.orientation.w = map(float, target_quat)
-
-        traj_msg = self.cartesian_client.plan("left_arm", [wp])
-
-        robot_model = self.ur.get_robot_model()
-        traj_core = RobotTrajectory(robot_model)
-        current_state = self.ur.get_current_state()  # RobotState
-        traj_core.set_robot_trajectory_msg(current_state, traj_msg)  #  copy in
-
-        return SimpleNamespace(successful=True, trajectory=traj_core)
+    # def _cartesian_plan(self, target_pos, target_quat):
+    #     """Return a PlanSolution‑like shim whose .trajectory
+    #        is a moveit.core.robot_trajectory.RobotTrajectory."""
+    #     wp = Pose()
+    #     wp.position.x, wp.position.y, wp.position.z = map(float, target_pos)
+    #     wp.orientation.x, wp.orientation.y, wp.orientation.z, wp.orientation.w = map(float, target_quat)
+    #
+    #     traj_msg = self.cartesian_client.plan("left_arm", [wp])
+    #
+    #     robot_model = self.ur.get_robot_model()
+    #     traj_core = RobotTrajectory(robot_model)
+    #     current_state = self.ur.get_current_state()  # RobotState
+    #     traj_core.set_robot_trajectory_msg(current_state, traj_msg)  #  copy in
+    #
+    #     return SimpleNamespace(successful=True, trajectory=traj_core)
 
     def _joint_space_plan(self, target_pos, target_quat):
         """

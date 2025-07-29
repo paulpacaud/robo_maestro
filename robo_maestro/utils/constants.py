@@ -12,6 +12,8 @@ WORKSPACE = {
 
 # ROBOT CONTROL PARAMETERS
 DEFAULT_ROBOT_ACTION = [-0.25,  0,  0.5, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
+MOCK_ROBOT_ACTION_1 = [-0.25,  0.2,  0.65, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
+MOCK_ROBOT_ACTION_2 = [-0.25,  -0.2,  0.45, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
 # corresponds to an orientation of [pi, 0, pi] in euler angles. The gripper is open (0)
 # the quaternions must satisfy the unit quaternion constraint (the sum of squares should equal 1).
 EEF_FRAME = {"left": "left_gripper_grasp_frame", "right": "right_gripper_grasp_frame"}
@@ -34,7 +36,6 @@ ROBOT_LINKS = {
         "left_wrist_3_link",
         "left_ft300_mounting_plate",
         "left_ft300_sensor",
-        "left_camera_link",
         "left_gripper_body",
         "left_gripper_bracket",
         "left_gripper_finger_1_finger_tip",
@@ -54,7 +55,7 @@ ROBOT_LINKS = {
 }
 
 # POLICY PARAMETERS
-MAX_STEPS = 20
+MAX_STEPS = 5
 
 # CAMERA PARAMETERS
 BRAVO_INFO = {

@@ -65,8 +65,8 @@ class PolicyServer:
         action = output['action']
         cache = output['cache']
 
-        log_info('action', action)
-        log_info("cache:", cache)
+        log_info(f"action {action}")
+        log_info(f"cache: {cache}")
 
         return action, cache
 
@@ -74,18 +74,18 @@ class PolicyServer:
         """
         Mock prediction function to simulate server response.
         """
-        log_info("Mock prediction called with batch:", batch)
+        log_info(f"Mock prediction called with batch {batch.keys()}")
 
-        # Simulate a slight change from DEFAULT_ROBOT_ACTION
-        action = np.array(DEFAULT_ROBOT_ACTION, dtype=np.float32)
-        action[0] += 0.05
-        action[1] += 0.05
-        action[2] += 0.05
-        action[-1] = 1 if action[-1] == 0 else 0
+        # randomly pick MOCK_ROBOT_ACTION_1 or MOCK_ROBOT_ACTION_2
+        if np.random.rand() < 0.5:
+            action = np.array(MOCK_ROBOT_ACTION_1, dtype=np.float32)
+        else:
+            action = np.array(MOCK_ROBOT_ACTION_2, dtype=np.float32)
+
         cache = {}
 
-        log_info('action', action)
-        log_info("cache:", cache)
+        log_info(f"action {action}")
+        log_info(f"cache: {cache}")
 
         return action, cache
 
@@ -126,27 +126,13 @@ class TaskEvaluator:
 
         action, cache = self.policy_server.mock_predict(batch)
 
-        log_info('action', action)
-        log_info("cache:", cache)
-
         keystep_real["action"] = action
 
         np.save(os.path.join(self.save_path, f"{step_id}.npy"), keystep_real)
 
-        pos = deepcopy(action[:3]).astype(np.double)
-        quat = deepcopy(action[3:7]).astype(np.double)
-        open_gripper = action[7] >= 0.5
-
-        log_info('action', action)
-        log_info("Predicting step:", step_id, f"Open gripper {open_gripper}")
-
-        log_info("Position:", pos)
-        log_info("Quaternion:", quat)
-        log_info("Open gripper:", open_gripper)
-        log_info("Rotation:", quat_to_euler(quat, True))
         if not rclpy.ok():
             return None
-        obs, _, _, _, _ = self.env.step([pos, quat, open_gripper])
+        obs, _, _, _, _ = self.env.step(action)
 
         keystep_real = process_keystep(
             obs, 
@@ -233,6 +219,8 @@ class RunPolicyNode(Node):
                 break
 
             keystep_real, cache = result
+
+        log_info(f"Last step completed, max steps reached")
 
 
 def main():
