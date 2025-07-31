@@ -9,10 +9,9 @@ WORKSPACE = {
     "right": np.array([[0.295, -0.16, 0.00], [0.695, 0.175, 0.2]]),
 }
 
-
 # ROBOT CONTROL PARAMETERS
 DEFAULT_ROBOT_ACTION = [-0.25,  0,  0.5, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
-MOCK_ROBOT_ACTION_1 = [-0.25,  0.2,  0.65, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
+MOCK_ROBOT_ACTION_1 = [-0.25,  0.2,  0.65, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 1]
 MOCK_ROBOT_ACTION_2 = [-0.25,  -0.1,  0.5, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
 # corresponds to an orientation of [pi, 0, pi] in euler angles. The gripper is open (0)
 # the quaternions must satisfy the unit quaternion constraint (the sum of squares should equal 1).
@@ -24,6 +23,7 @@ COMMAND_ROS_TOPIC = {"left": "/left_arm/scaled_pos_joint_traj_controller/command
 EEF_STEPS = 0.01
 JUMP_THRESHOLD = 0.0
 Q_VEL_THRESHOLD = 2  # rad/s
+TRY_PLANNING_MAX_ITER = 10
 ROBOT_BASE_FRAME = "prl_ur5_base"
 ROBOT_LINKS = {
     "left": [

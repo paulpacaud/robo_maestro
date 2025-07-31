@@ -4,45 +4,15 @@ from moveit.core.robot_state import RobotState
 
 import rclpy
 from rclpy.node import Node
-from moveit_msgs.srv import GetCartesianPath
 from rclpy.logging import get_logger
 from geometry_msgs.msg import Pose, PoseStamped
-from moveit.planning import MoveItPy
+from moveit.planning import MoveItPy, PlanRequestParameters
 import numpy as np
 from robo_maestro.core.observer import TFRecorder, JointStateRecorder, CameraPose
 from robo_maestro.utils.constants import *
 import time
 
 from robo_maestro.utils.logger import log_info, log_error, log_warn
-
-
-
-
-# class CartesianClient(Node):
-#     def __init__(self):
-#         super().__init__("cartesian_client")
-#         self.cli = self.create_client(GetCartesianPath,
-#                                       "/compute_cartesian_path")
-#         self.cli.wait_for_service()
-#
-#     def plan(self, group: str, waypoints: list[Pose],
-#              eef_step: float = 0.01, jump_thresh: float = 0.0):
-#         req = GetCartesianPath.Request()
-#         req.group_name      = group
-#         req.header.frame_id = "prl_ur5_base"
-#         req.waypoints       = waypoints
-#         req.max_step        = eef_step
-#         req.jump_threshold  = jump_thresh
-#         req.avoid_collisions = True     # or False
-#         future = self.cli.call_async(req)
-#         rclpy.spin_until_future_complete(self, future)
-#         resp = future.result()
-#         if resp.error_code.val == resp.error_code.SUCCESS and resp.fraction > 0.0:
-#             return resp.solution            # moveit_msgs/RobotTrajectory
-#         else:
-#             log_error(f"Cartesian planning failed")
-#             raise RuntimeError(f"Cartesian planning failed: "
-#                                f"{resp.error_code.val}, fraction={resp.fraction}")
 
 
 class Robot:
@@ -79,12 +49,26 @@ class Robot:
 
         # robot controller
         self.ur = MoveItPy(node_name="moveit_py")
+        time.sleep(5)
         self.left_arm = self.ur.get_planning_component("left_arm")
         self.left_gripper = self.ur.get_planning_component("left_gripper")
 
+        # vanilla plan params
+        self.plan_params = PlanRequestParameters(self.ur, "left_arm")
+        self.plan_params.planning_pipeline = "ompl"
+        self.plan_params.planner_id = "RRTConnect" # TODO: to change - not the best choice as it is very good for cluttered envs, but not for open spaces
+        self.plan_params.max_velocity_scaling_factor = 0.25
+        self.plan_params.max_acceleration_scaling_factor = 0.25
+
+        # cartesian_only plan params
+        self.lin_plan_params = PlanRequestParameters(self.ur, "left_arm")
+        self.lin_plan_params.planning_pipeline = "pilz_industrial_motion_planner"
+        self.lin_plan_params.planner_id = "LIN"
+        self.lin_plan_params.max_velocity_scaling_factor = 0.10
+        self.lin_plan_params.max_acceleration_scaling_factor = 0.10
+
         self.gripper_state = 0
         log_info("Robot initialized with workspace")
-        # self.cartesian_client = CartesianClient()
 
         self._wait_for_controllers()
         self.reset()
@@ -109,29 +93,91 @@ class Robot:
             log_info(f"Controller {controller} is ready")
             client.destroy()
 
-    def _plan_and_execute(
-            self,
-            robot,
-            planning_component,
-            sleep_time=0.0,
-    ):
-        """Helper function to plan and execute a motion."""
+    def _plan_gripper(self, planning_component):
+        group_name = planning_component.planning_group_name
+        log_info(f"Gripper planning for {group_name}, using joint space planning only")
+
+        valid_trajectory = planning_component.plan(
+            single_plan_parameters=self.plan_params
+        )
+
+        if not valid_trajectory:
+            log_error(f"Gripper planning failed for {group_name}")
+            return None
+
+        return valid_trajectory
+
+    def _plan_cartesian(self, planning_component, max_iterations=TRY_PLANNING_MAX_ITER):
+        group_name = planning_component.planning_group_name
+
+        for iteration in range(max_iterations):
+            log_info(f"Trying cartesian planning for {group_name}, iteration {iteration + 1}")
+            valid_trajectory = planning_component.plan(
+                single_plan_parameters=self.lin_plan_params
+            )
+
+            if valid_trajectory:
+                log_info(f"Cartesian planning succeeded for {group_name} after {iteration + 1} iterations")
+                return valid_trajectory
+
+        return None
+
+    def _plan_joint_space(self, planning_component):
+        group_name = planning_component.planning_group_name
+        log_info(f"Trying joint space planning for {group_name}")
+
+        valid_trajectory = planning_component.plan(
+            single_plan_parameters=self.plan_params
+        )
+
+        if not valid_trajectory:
+            log_error(f"Joint space planning failed for {group_name}")
+            return None
+
+        return valid_trajectory
+
+    def _plan(self, planning_component, cartesian_only):
         group_name = planning_component.planning_group_name
         log_info(f"Planning trajectory for {group_name}")
-        plan_result = planning_component.plan()
 
-        # execute the plan if it is valid trajectory
-        if plan_result:
-            log_info(f"Executing plan for {group_name}")
-            robot_trajectory = plan_result.trajectory
-            success = robot.execute(robot_trajectory, controllers=[])
-        else:
-            log_error(f"Planning failed for {group_name}")
-            success = False
+        if "gripper" in group_name:
+            return self._plan_gripper(planning_component)
+
+        valid_trajectory = self._plan_cartesian(planning_component)
+
+        if valid_trajectory:
+            return valid_trajectory
+
+        if cartesian_only:
+            log_error(f"cartesian_only is True, returning None")
+            return None
+
+        return self._plan_joint_space(planning_component)
+
+    def _execute(self, robot, robot_trajectory, group_name, sleep_time=0.0):
+        """Helper function to execute a planned trajectory."""
+        log_info(f"Executing plan for {group_name}")
+        success = robot.execute(robot_trajectory, controllers=[])
 
         time.sleep(sleep_time)
 
-        log_info(f"Plan execution for {group_name} {'succeeded' if success else 'failed'}")
+        if not success:
+            log_error(f"Execution of plan for {group_name} failed")
+            return False
+
+        log_info(f"Plan execution for {group_name} succeeded")
+        return success
+
+    def _plan_and_execute(self, robot, planning_component, cartesian_only, sleep_time=0.0):
+        """Helper function to plan and execute a motion."""
+        valid_trajectory = self._plan(planning_component, cartesian_only)
+        if not valid_trajectory:
+            return False
+
+        group_name = planning_component.planning_group_name
+        robot_trajectory = valid_trajectory.trajectory
+        success = self._execute(robot, robot_trajectory, group_name, sleep_time)
+
         return success
 
     def eef_pose(self):
@@ -186,60 +232,13 @@ class Robot:
             log_info(f"Safety _limit_position() function called and limited  the pos to: {new_position}")
         return new_position
 
-    def go_to_pose(self, action, cartesian=False):
-        """
-        Move to `action`. If `cartesian=True`, force straight-line Cartesian path.
-        """
+    def go_to_pose(self, action, cartesian_only=False):
         log_info(f"target action: \n {action}")
 
         target_pos   = self._limit_position(action[:3])
         target_quat  = action[3:7]
+        target_grip = action[7]
 
-        # if cartesian:
-        #     # success = self._joint_space_plan(target_pos, target_quat)
-        #     plan = self._cartesian_plan(target_pos, target_quat)
-        #     if plan:
-        #         log_info("Executing Cartesian path")
-        #         success = self.ur.execute(plan.trajectory, controllers=[])
-        #     else:
-        #         log_warn("Cartesian planning failed; falling back to joint-space")
-        #         success = self._joint_space_plan(target_pos, target_quat)
-        # else:
-        #     success = self._joint_space_plan(target_pos, target_quat)
-        success = self._joint_space_plan(target_pos, target_quat)
-
-        return success
-
-    def reset(self):
-        log_info("resetting Robot")
-        success = self.go_to_pose(DEFAULT_ROBOT_ACTION, cartesian=True)
-        if not success:
-            log_error("Moving the robot failed during reset")
-            raise RuntimeError("Moving the robot failed")
-
-        return success
-
-    # def _cartesian_plan(self, target_pos, target_quat):
-    #     """Return a PlanSolution‑like shim whose .trajectory
-    #        is a moveit.core.robot_trajectory.RobotTrajectory."""
-    #     wp = Pose()
-    #     wp.position.x, wp.position.y, wp.position.z = map(float, target_pos)
-    #     wp.orientation.x, wp.orientation.y, wp.orientation.z, wp.orientation.w = map(float, target_quat)
-    #
-    #     traj_msg = self.cartesian_client.plan("left_arm", [wp])
-    #
-    #     robot_model = self.ur.get_robot_model()
-    #     traj_core = RobotTrajectory(robot_model)
-    #     current_state = self.ur.get_current_state()  # RobotState
-    #     traj_core.set_robot_trajectory_msg(current_state, traj_msg)  #  copy in
-    #
-    #     return SimpleNamespace(successful=True, trajectory=traj_core)
-
-    def _joint_space_plan(self, target_pos, target_quat):
-        """
-        Default joint-space plan+execute for arm and gripper.
-        """
-        # Arm
         self.left_arm.set_start_state_to_current_state()
         goal = PoseStamped()
         goal.header.frame_id = ROBOT_BASE_FRAME
@@ -247,16 +246,40 @@ class Robot:
         goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w = map(float,
                                                                                                                  target_quat)
         self.left_arm.set_goal_state(pose_stamped_msg=goal, pose_link="left_tool0")
-        success_arm = self._plan_and_execute(self.ur, self.left_arm, sleep_time=3.0)
+        success_arm = self._plan_and_execute(
+            self.ur,
+            self.left_arm,
+            cartesian_only,
+            sleep_time=3.0
+        )
 
         # Gripper
-        gripper_state = "open" if self.gripper_state == 0 else "close"
-        self.left_gripper.set_goal_state(configuration_name=gripper_state)
+        target_grip_str = "open" if target_grip == 0 else "close"
+        self.left_gripper.set_goal_state(configuration_name=target_grip_str)
         if self.use_sim_time:
             success_gripper = True
             log_info("Skipping gripper execution in simulation")
         else:
-            success_gripper = self._plan_and_execute(self.ur, self.left_gripper, sleep_time=3.0)
-        self.gripper_state = 1 if gripper_state == "open" else 0
+            success_gripper = self._plan_and_execute(
+                self.ur,
+                self.left_gripper,
+                cartesian_only=False,
+                sleep_time=3.0
+            )
+        self.gripper_state = 0 if target_grip_str == "open" else 1
 
         return success_arm and success_gripper
+
+    def reset(self):
+        log_info("resetting Robot")
+        success = self.go_to_pose(DEFAULT_ROBOT_ACTION)
+        if not success:
+            log_error("Moving the robot failed during reset")
+            raise RuntimeError("Moving the robot failed")
+
+        return success
+
+    def _joint_space_plan(self, target_pos, target_quat, gripper_state, cartesian_only):
+        """
+        Default joint-space plan+execute for arm and gripper.
+        """

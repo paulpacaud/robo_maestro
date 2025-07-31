@@ -40,7 +40,7 @@ class Arguments(tap.Tap):
     instr: str = None
     use_sem_ft: bool = False
     ip: str = "127.0.0.1"
-    port: int = 8001
+    port: int = 8002
     episode_id: int = 0
 
     def __init__(self, *args, **kwargs):
@@ -55,11 +55,28 @@ class Arguments(tap.Tap):
 
 
 class PolicyServer:
-    def __init__(self, server_addr):
+    def __init__(self, server_addr, save_path):
         self.server_addr = server_addr
+        self.save_path = save_path
 
     def predict(self, batch):
+        log_info(f"Policy server at {self.server_addr}/predict called with batch {batch.keys()}")
+
+        # 1) pack the batch
         data = msgpack_numpy.packb(batch)
+
+        # 2) save it to disk
+        save_batch_dir = os.path.join(self.save_path, "batch")
+        os.makedirs(save_batch_dir, exist_ok=True)
+        filename = os.path.join(
+            save_batch_dir,
+            f"step-{batch['step_id']}.msgpack"
+        )
+        with open(filename, "wb") as f:
+            f.write(data)
+        log_info(f"Saved batch to {filename}")
+
+        # 3) send it on its way
         response = requests.post(f"{self.server_addr}/predict", data=data)
         output = msgpack_numpy.unpackb(response._content)
         action = output['action']
@@ -100,9 +117,8 @@ class TaskEvaluator:
         self.cam_list = cam_list
         self.image_size = image_size
         self.save_path = os.path.join(DATA_DIR, 'run_policy_experiments', self.task + "+" + self.variation, f"episode_{self.episode_id}")
-        os.makedirs(self.save_path, exist_ok=True)
 
-        self.policy_server = PolicyServer(server_addr)
+        self.policy_server = PolicyServer(server_addr, self.save_path)
 
     def execute_step(self, step_id, obs, keystep_real, cache):
         if not rclpy.ok():
@@ -124,11 +140,14 @@ class TaskEvaluator:
             'cache': cache,
         }
 
+        # realaction, realcache = self.policy_server.predict(batch)
         action, cache = self.policy_server.mock_predict(batch, step_id)
 
         keystep_real["action"] = action
 
-        np.save(os.path.join(self.save_path, f"{step_id}.npy"), keystep_real)
+        save_steps_dir = os.path.join(self.save_path, "keysteps")
+        os.makedirs(save_steps_dir, exist_ok=True)
+        np.save(os.path.join(save_steps_dir, f"{step_id}.npy"), keystep_real)
 
         if not rclpy.ok():
             return None
