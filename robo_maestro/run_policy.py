@@ -140,8 +140,8 @@ class TaskEvaluator:
             'cache': cache,
         }
 
-        # action, cache = self.policy_server.predict(batch)
-        action, cache = self.policy_server.mock_predict(batch, step_id)
+        action, cache = self.policy_server.predict(batch)
+        #action, cache = self.policy_server.mock_predict(batch, step_id)
 
         keystep_real["action"] = action
 
