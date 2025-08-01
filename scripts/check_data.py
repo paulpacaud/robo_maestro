@@ -15,6 +15,7 @@ def inspect_one(path):
     batch = load_batch(path)
     print(f"\n=== {os.path.basename(path)} ===")
     print(f" Task:     {batch.get('task_str')}+{batch.get('variation')}")
+    print(f" Episode:  {batch.get('episode_id')}")
     print(f" Step ID:  {batch.get('step_id')}")
     print(f" Keys:     {list(batch.keys())}\n")
 

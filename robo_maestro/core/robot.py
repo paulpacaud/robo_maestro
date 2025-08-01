@@ -64,14 +64,15 @@ class Robot:
         self.lin_plan_params = PlanRequestParameters(self.ur, "left_arm")
         self.lin_plan_params.planning_pipeline = "pilz_industrial_motion_planner"
         self.lin_plan_params.planner_id = "LIN"
-        self.lin_plan_params.max_velocity_scaling_factor = 0.10
-        self.lin_plan_params.max_acceleration_scaling_factor = 0.10
+        self.lin_plan_params.max_velocity_scaling_factor = 0.15
+        self.lin_plan_params.max_acceleration_scaling_factor = 0.15
 
         self.gripper_state = 0
         log_info("Robot initialized with workspace")
 
         self._wait_for_controllers()
-        self.reset()
+        # self.reset()
+        self.eef_pose()
 
     def _wait_for_controllers(self, timeout=30.0):
         """Wait for trajectory controllers to be ready."""
@@ -245,7 +246,7 @@ class Robot:
         goal.pose.position.x, goal.pose.position.y, goal.pose.position.z = map(float, target_pos)
         goal.pose.orientation.x, goal.pose.orientation.y, goal.pose.orientation.z, goal.pose.orientation.w = map(float,
                                                                                                                  target_quat)
-        self.left_arm.set_goal_state(pose_stamped_msg=goal, pose_link="left_tool0")
+        self.left_arm.set_goal_state(pose_stamped_msg=goal, pose_link="left_gripper_grasp_frame")
         success_arm = self._plan_and_execute(
             self.ur,
             self.left_arm,
@@ -254,19 +255,20 @@ class Robot:
         )
 
         # Gripper
-        target_grip_str = "open" if target_grip == 0 else "close"
-        self.left_gripper.set_goal_state(configuration_name=target_grip_str)
-        if self.use_sim_time:
-            success_gripper = True
-            log_info("Skipping gripper execution in simulation")
-        else:
-            success_gripper = self._plan_and_execute(
-                self.ur,
-                self.left_gripper,
-                cartesian_only=False,
-                sleep_time=3.0
-            )
-        self.gripper_state = 0 if target_grip_str == "open" else 1
+        # target_grip_str = "open" if target_grip == 0 else "close"
+        # self.left_gripper.set_goal_state(configuration_name=target_grip_str)
+        # if self.use_sim_time:
+        #     success_gripper = True
+        #     log_info("Skipping gripper execution in simulation")
+        # else:
+        #     success_gripper = self._plan_and_execute(
+        #         self.ur,
+        #         self.left_gripper,
+        #         cartesian_only=False,
+        #         sleep_time=3.0
+        #     )
+        # self.gripper_state = 0 if target_grip_str == "open" else 1
+        success_gripper = True
 
         return success_arm and success_gripper
 
