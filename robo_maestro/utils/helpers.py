@@ -51,7 +51,7 @@ def resize(im, new_size, im_type="rgb"):
     return new_im, ratio
 
 
-def process_keystep(obs, links_bbox, cam_list=["bravo_camera", "charlie_camera", "alpha_camera"], crop_size=None):
+def process_keystep(obs, links_bbox, cam_list=["bravo_camera", "charlie_camera", "alpha_camera"]):
     log_info("Processing keystep")
     rgb = []
     pc = []
@@ -66,16 +66,19 @@ def process_keystep(obs, links_bbox, cam_list=["bravo_camera", "charlie_camera",
     rgb = torch.stack(rgb)  # (C, H, W, 3)
     pc = torch.stack(pc)  # (C, H, W, 3)
 
-    if crop_size:
-        rgb = rgb.permute(0, 3, 1, 2)
-        pc = pc.permute(0, 3, 1, 2)
+    # ------ Cropping and Resizing ------
+    crop_size = 256 # 256 = image_size
+    rgb = rgb.permute(0, 3, 1, 2)
+    pc = pc.permute(0, 3, 1, 2)
 
-        rgb, ratio = resize(rgb, crop_size, im_type="rgb")
-        pc, ratio = resize(pc, crop_size, im_type="pc")
-        rgb, start_x, start_y = crop_center(rgb, crop_size, crop_size)
-        pc, start_x, start_y = crop_center(pc, crop_size, crop_size)
-        rgb = rgb.permute(0, 2, 3, 1)
-        pc = pc.permute(0, 2, 3, 1)
+    rgb, ratio = resize(rgb, crop_size, im_type="rgb")
+    pc, ratio = resize(pc, crop_size, im_type="pc")
+    rgb, start_x, start_y = crop_center(rgb, crop_size, crop_size)
+    pc, start_x, start_y = crop_center(pc, crop_size, crop_size)
+    rgb = rgb.permute(0, 2, 3, 1)
+    pc = pc.permute(0, 2, 3, 1)
+
+    # ------------------------------------
 
     robot_info = obs["robot_info"]
     bbox_info = {}

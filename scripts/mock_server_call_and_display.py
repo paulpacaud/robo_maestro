@@ -143,8 +143,8 @@ def main():
     cache = output.get("cache")
 
     print("\n=== Policy Server Response ===")
-    print("Action:", action)
-    print("Cache:", cache)
+    # print("Action:", action)
+    # print("Cache:", cache)
 
     # Visualize if requested and data is available
     if args.visualize and pc_data is not None and rgb_data is not None and action is not None:

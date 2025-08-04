@@ -15,30 +15,20 @@ import robo_maestro.envs
 from ament_index_python.packages import get_package_share_directory
 from robo_maestro.utils.helpers import *
 from robo_maestro.utils.constants import *
-from robo_maestro.utils.logger import log_info, log_warn, log_error, log_debug
+from robo_maestro.utils.logger import log_info, log_warn, log_error, log_debug, log_success
 import rclpy
 from rclpy.node import Node
 from easydict import EasyDict
 import numpy as np
-from copy import deepcopy
 import msgpack
 import requests
 import msgpack_numpy
 msgpack_numpy.patch()
 
 class Arguments(tap.Tap):
-    device: str = "cuda"
-    num_demos: int = 10
-    image_size: int = 256
     cam_list: list[str] = ["bravo_camera","charlie_camera","alpha_camera"]
     arm: str = "left"
-    env_name: str = "RealRobot-Pick-v0"
-    arch: str = "ptv3"
-    save_obs_outs_dir: str = None
-    checkpoint: str = None
-    taskvar: str = "real_hungry+0"
-    instr: str = None
-    use_sem_ft: bool = False
+    taskvar: str = "real_put_fruit_in_box+0"
     ip: str = "127.0.0.1"
     port: int = 8002
     episode_id: int = 0
@@ -82,9 +72,9 @@ class PolicyServer:
         action = output['action']
         cache = output['cache']
 
-        log_info(f"action {action}")
-        log_info(f"cache: {cache}")
+        log_info(f"Received action of shape {action.shape} and cache from server")
 
+        self._display_cache(action, cache)
         return action, cache
 
     def mock_predict(self, batch, step_id):
@@ -101,13 +91,17 @@ class PolicyServer:
 
         cache = {}
 
-        log_info(f"action {action}")
-        log_info(f"cache: {cache}")
-
+        self._display_cache(action, cache)
         return action, cache
 
+    def _display_cache(self, action, cache):
+        log_info(f"cache['last_plan']: {cache.get('last_plan', 'N/A')}")
+        log_info(f"highlevel_step_id: {cache.get('highlevel_stepid', 'N/A')}")
+        log_info(f"highlevel_plans: {cache.get('highlevel_plans', 'N/A')}")
+
+
 class TaskEvaluator:
-    def __init__(self, env, task, variation, instructions, episode_id, links_bbox, cam_list, image_size, server_addr):
+    def __init__(self, env, task, variation, instructions, episode_id, links_bbox, cam_list, server_addr):
         self.env = env
         self.task = task
         self.variation = variation
@@ -115,12 +109,11 @@ class TaskEvaluator:
         self.episode_id = episode_id
         self.links_bbox = links_bbox
         self.cam_list = cam_list
-        self.image_size = image_size
         self.save_path = os.path.join(DATA_DIR, 'run_policy_experiments', self.task + "+" + self.variation, f"episode_{self.episode_id}")
 
         self.policy_server = PolicyServer(server_addr, self.save_path)
 
-    def execute_step(self, step_id, obs, keystep_real, cache):
+    def execute_step(self, step_id, keystep_real, cache):
         if not rclpy.ok():
             return None
             
@@ -140,8 +133,8 @@ class TaskEvaluator:
             'cache': cache,
         }
 
-        action, cache = self.policy_server.predict(batch)
-        #action, cache = self.policy_server.mock_predict(batch, step_id)
+        #action, cache = self.policy_server.predict(batch)
+        action, cache = self.policy_server.mock_predict(batch, step_id)
 
         keystep_real["action"] = action
 
@@ -157,7 +150,6 @@ class TaskEvaluator:
             obs, 
             links_bbox=self.links_bbox,
             cam_list=self.cam_list,
-            crop_size=self.image_size
         )
 
         if not rclpy.ok():
@@ -210,7 +202,7 @@ class RunPolicyNode(Node):
             self.env, self.task, self.variation,
             self.instructions, self.args.episode_id,
             self.links_bbox, self.args.cam_list,
-            self.args.image_size, self.args.server_addr
+            self.args.server_addr
         )
 
     def run(self):
@@ -220,7 +212,6 @@ class RunPolicyNode(Node):
             obs,
             links_bbox=self.links_bbox,
             cam_list=self.args.cam_list,
-            crop_size=self.args.image_size
         )
 
         cache = None
@@ -231,15 +222,14 @@ class RunPolicyNode(Node):
 
             rclpy.spin_once(self, timeout_sec=0.0)
 
-            result = self.evaluator.execute_step(
-                step_id, obs, keystep_real, cache
+            keystep_real, cache = self.evaluator.execute_step(
+                step_id, keystep_real, cache
             )
-            if result is None:
+            if keystep_real is None or cache is None:
+                log_error("Environment step failed, keystep_real is None or cache is None, exiting.")
                 break
 
-            keystep_real, cache = result
-
-        log_info(f"Last step completed, max steps reached")
+        log_success(f"Last step completed, max steps reached")
 
 
 def main():

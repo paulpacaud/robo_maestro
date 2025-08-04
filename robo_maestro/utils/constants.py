@@ -4,18 +4,20 @@ import numpy as np
 DATA_DIR = "/home/ros/share/data"
 
 # WORKSPACE PARAMETERS
+# The first sub-array [-0.50, -0.54, 0.01] is the minimum allowed position: x, y, z.
+# The second sub-array [0.0, 0.54, 0.75] is the maximum allowed position: x, y, z.
 WORKSPACE = {
-    "left": np.array([[-0.50, -0.54, 0.01], [0.0, 0.54, 0.75]]),
+    "left": np.array([[-0.50, -0.54, 0.015], [0.0, 0.54, 0.75]]),
     "right": np.array([[0.295, -0.16, 0.00], [0.695, 0.175, 0.2]]),
 }
 
 # ROBOT CONTROL PARAMETERS
 DEFAULT_ROBOT_ACTION = [-0.25,  0,  0.3, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
 # MOCK_ROBOT_ACTION_1 = [-0.25,  0.2,  0.65, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 1]
-MOCK_ROBOT_ACTION_1 = [-2.53981777e-01, -3.10285119e-05,  0.03, 9.99980610e-01,  7.05107199e-05, -6.22669784e-03,  4.89237208e-05, 0]
+MOCK_ROBOT_ACTION_1 = [-0.344795868, 0.174202271, 0.0200817175, -0.258819045, -0.965925826, 5.91458986e-17, 1.58480958e-17, 1]
 # MOCK_ROBOT_ACTION_2 = [-0.25,  -0.1,  0.5, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 0]
 # MOCK_ROBOT_ACTION_2 = [-1.76405452e-01,  9.35083255e-03,  0.1, -2.58819045e-01, -9.65925826e-01,  5.91458986e-17,  1.58480958e-17,  7.58555225e-02]
-MOCK_ROBOT_ACTION_2 = [-1.76405452e-01,  9.35083255e-03,  0.1, -2.58819045e-01, -9.65925826e-01,  5.91458986e-17,  1.58480958e-17,  7.58555225e-02]
+MOCK_ROBOT_ACTION_2 = [-1.76405452e-01,  9.35083255e-03,  0.1, -2.58819045e-01, -9.65925826e-01,  5.91458986e-17,  1.58480958e-17,  0]
 
 # corresponds to an orientation of [pi, 0, pi] in euler angles. The gripper is open (0)
 # the quaternions must satisfy the unit quaternion constraint (the sum of squares should equal 1).
@@ -59,7 +61,7 @@ ROBOT_LINKS = {
 }
 
 # POLICY PARAMETERS
-MAX_STEPS = 5
+MAX_STEPS = 25
 
 # CAMERA PARAMETERS
 BRAVO_INFO = {

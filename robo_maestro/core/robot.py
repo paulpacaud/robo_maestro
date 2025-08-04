@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from moveit.core.robot_trajectory import RobotTrajectory
 from moveit.core.robot_state import RobotState
-
+from ur_msgs.srv import SetIO
 import rclpy
 from rclpy.node import Node
 from rclpy.logging import get_logger
@@ -12,7 +12,7 @@ from robo_maestro.core.observer import TFRecorder, JointStateRecorder, CameraPos
 from robo_maestro.utils.constants import *
 import time
 
-from robo_maestro.utils.logger import log_info, log_error, log_warn
+from robo_maestro.utils.logger import log_info, log_error, log_warn, log_success
 
 
 class Robot:
@@ -29,6 +29,11 @@ class Robot:
             for link in ROBOT_LINKS[arm]
         }
         self.joints_state_recorder = JointStateRecorder(self.node)
+
+        # Gripper Subscription
+        self.gripper_client = self.node.create_client(
+            SetIO, "/left_io_and_status_controller/set_io"
+        )
 
         # Cameras
         self.cam_list = cam_list
@@ -68,7 +73,7 @@ class Robot:
         self.lin_plan_params.max_acceleration_scaling_factor = 0.15
 
         self.gripper_state = 0
-        log_info("Robot initialized with workspace")
+        log_success("Robot initialized with workspace")
 
         self._wait_for_controllers()
         # self.reset()
@@ -91,22 +96,56 @@ class Robot:
             if not client.wait_for_server(timeout_sec=timeout):
                 log_error(f"Controller {controller} not available after {timeout}s")
                 raise RuntimeError(f"Controller {controller} not available")
-            log_info(f"Controller {controller} is ready")
+            log_success(f"Controller {controller} is ready")
             client.destroy()
 
-    def _plan_gripper(self, planning_component):
-        group_name = planning_component.planning_group_name
-        log_info(f"Gripper planning for {group_name}, using joint space planning only")
+    def open_gripper(self, low_force_mode=False, wait=True):  # OK
+        """Open the gripper.
 
-        valid_trajectory = planning_component.plan(
-            single_plan_parameters=self.plan_params
-        )
+        Keyword Arguments:
+            low_force_mode {bool} -- use the low force mode (5N instead of 40N) (default: {False})
+            wait {bool} -- wait until the end of the movement (default: {False})
 
-        if not valid_trajectory:
-            log_error(f"Gripper planning failed for {group_name}")
-            return None
+        Raises:
+            ROSException: timeout exception
+        """
+        log_info('Opening gripper...')
+        self.gripper_move(0, low_force_mode, wait)
 
-        return valid_trajectory
+    def close_gripper(self, low_force_mode=False, wait=True):  # OK
+        """Close the gripper.
+
+        Keyword Arguments:
+            low_force_mode {bool} -- use the low force mode (5N instead of 40N) (default: {False})
+            wait {bool} -- wait until the end of the movement (default: {False})
+
+        Raises:
+            ROSException: timeout exception
+        """
+        log_info('Closing gripper...')
+        self.gripper_move(1, low_force_mode, wait)
+
+    def gripper_move(self, target, low_force_mode=False, wait=True):  # OK
+        self._set_digital_out(1, 17, 1 if low_force_mode else 0)
+        self._set_digital_out(1, 16, target)
+        time.sleep(6) # the low-level controller does not wait for the gripper to reach the target position, so we need to wait here
+        log_success(f'Gripper moved to position {target} with low force mode {low_force_mode}.')
+
+    def _set_digital_out(self, fun, pin, state):  # OK
+        req = SetIO.Request()
+        req.fun = fun
+        req.pin = pin
+        req.state = float(state)
+        self.future = self.gripper_client.call_async(req)
+        log_info("sending request to set digital out")
+        return self.future.result()
+
+    def _execute_gripper(self, state):
+        if state=="open":
+            self.open_gripper()
+        else:
+            self.close_gripper()
+
 
     def _plan_cartesian(self, planning_component, max_iterations=TRY_PLANNING_MAX_ITER):
         group_name = planning_component.planning_group_name
@@ -118,7 +157,7 @@ class Robot:
             )
 
             if valid_trajectory:
-                log_info(f"Cartesian planning succeeded for {group_name} after {iteration + 1} iterations")
+                log_success(f"Cartesian planning succeeded for {group_name} after {iteration + 1} iterations")
                 return valid_trajectory
 
         return None
@@ -140,9 +179,6 @@ class Robot:
     def _plan(self, planning_component, cartesian_only):
         group_name = planning_component.planning_group_name
         log_info(f"Planning trajectory for {group_name}")
-
-        if "gripper" in group_name:
-            return self._plan_gripper(planning_component)
 
         valid_trajectory = self._plan_cartesian(planning_component)
 
@@ -166,7 +202,7 @@ class Robot:
             log_error(f"Execution of plan for {group_name} failed")
             return False
 
-        log_info(f"Plan execution for {group_name} succeeded")
+        log_success(f"Plan execution for {group_name} succeeded")
         return success
 
     def _plan_and_execute(self, robot, planning_component, cartesian_only, sleep_time=0.0):
@@ -198,7 +234,7 @@ class Robot:
         ]
 
         log_info(
-            f"current EEF: pos={eef_pose[0]}, quat={eef_pose[1]}, gripper_open={bool(eef_pose[2])}"
+            f"current EEF: pos={eef_pose[0]}, quat={eef_pose[1]}, gripper={eef_pose[2]}"
         )
         return eef_pose
 
@@ -230,11 +266,11 @@ class Robot:
             new_position.append(new_coord)
 
         if not np.array_equal(position, new_position):
-            log_info(f"Safety _limit_position() function called and limited  the pos to: {new_position}")
+            log_warn(f"Safety _limit_position() function called and limited the pos to: {new_position}")
         return new_position
 
     def go_to_pose(self, action, cartesian_only=False):
-        log_info(f"target action: \n {action}")
+        log_info(f"target action: {', '.join(map(str, action))}")
 
         target_pos   = self._limit_position(action[:3])
         target_quat  = action[3:7]
@@ -255,19 +291,14 @@ class Robot:
         )
 
         # Gripper
-        # target_grip_str = "open" if target_grip == 0 else "close"
+        target_grip_str = "open" if target_grip == 0 else "close"
         # self.left_gripper.set_goal_state(configuration_name=target_grip_str)
-        # if self.use_sim_time:
-        #     success_gripper = True
-        #     log_info("Skipping gripper execution in simulation")
-        # else:
-        #     success_gripper = self._plan_and_execute(
-        #         self.ur,
-        #         self.left_gripper,
-        #         cartesian_only=False,
-        #         sleep_time=3.0
-        #     )
-        # self.gripper_state = 0 if target_grip_str == "open" else 1
+        if self.use_sim_time:
+            success_gripper = True
+            log_info("Skipping gripper execution in simulation")
+        else:
+            self._execute_gripper(target_grip_str)
+        self.gripper_state = 0 if target_grip_str == "open" else 1
         success_gripper = True
 
         return success_arm and success_gripper
@@ -279,9 +310,5 @@ class Robot:
             log_error("Moving the robot failed during reset")
             raise RuntimeError("Moving the robot failed")
 
+        log_success("Robot reset successfully")
         return success
-
-    def _joint_space_plan(self, target_pos, target_quat, gripper_state, cartesian_only):
-        """
-        Default joint-space plan+execute for arm and gripper.
-        """

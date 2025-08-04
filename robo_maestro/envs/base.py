@@ -57,7 +57,7 @@ class BaseEnv(gym.Env):
     def step(self, action):
         self.robot.eef_pose()
 
-        success = self.robot.go_to_pose(action)
+        success = self.robot.go_to_pose(action.tolist())
 
         if not success:
             log_error("Failed to move the robot")
