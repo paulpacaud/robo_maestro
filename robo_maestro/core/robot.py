@@ -270,6 +270,10 @@ class Robot:
         return new_position
 
     def go_to_pose(self, action, cartesian_only=False):
+        """
+        For the arm, we will first try cartesian planning, and fall back to vanilla RTT motion planner if it fails.
+        For the gripper, we will just execute the open/close command.
+        """
         log_info(f"target action: {', '.join(map(str, action))}")
 
         target_pos   = self._limit_position(action[:3])
