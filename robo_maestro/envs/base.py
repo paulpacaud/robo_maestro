@@ -81,7 +81,6 @@ class BaseEnv(gym.Env):
         obs["gripper_state"] = np.array(gripper_pose[2])
 
         # Sensors
-        PARAMS = {}
         for cam_name in self.robot.cam_list:
             cam = self.robot.cameras[cam_name]
 
@@ -108,18 +107,6 @@ class BaseEnv(gym.Env):
             cam_euler = info_cam["euler"]
             world_T_cam = pos_euler_to_hom(cam_pos, cam_euler)
             intrinsics = self.cam_info[f"intrinsics_{cam_name}"]
-
-            cam_params = {
-                "intrinsics": intrinsics,
-                "extrinsics": {
-                    "world_T_cam": world_T_cam,
-                },
-                "info_cam": {
-                    "pos": cam_pos,
-                    "euler": cam_euler,
-                },
-            }
-            PARAMS[cam_name] = cam_params
 
             pcd = depth_to_pcd(depth, intrinsics)
             pcd = transform_pcd(pcd, world_T_cam)

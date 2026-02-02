@@ -48,7 +48,7 @@ class Robot:
             )
             self.depth_cameras[cam_name] = CameraPose(
                 node=self.node,
-                topic=f"/camera/{cam_name}/aligned_depth_to_color/image_raw",
+                topic=f"/camera/{cam_name}/depth/image_raw",
                 camera_frame=CAM_TF_TOPIC[cam_name]
             )
 

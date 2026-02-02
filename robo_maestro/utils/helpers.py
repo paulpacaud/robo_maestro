@@ -23,7 +23,11 @@ def crop_center(im, crop_h, crop_w):
     h, w = im.shape[-2], im.shape[-1]
     start_x = w // 2 - (crop_w // 2)
     start_y = h // 2 - (crop_h // 2)
-    return im[..., start_y:start_y + crop_w, start_x:start_x + crop_h], start_x, start_y
+    return (
+        im[..., start_y : start_y + crop_w, start_x : start_x + crop_h],
+        start_x,
+        start_y,
+    )
 
 
 def resize(im, new_size, im_type="rgb"):
@@ -38,9 +42,9 @@ def resize(im, new_size, im_type="rgb"):
 
     orig_h, orig_w = im.shape[-2], im.shape[-1]
     if orig_h < orig_w:
-        ratio = (new_size / orig_h)
+        ratio = new_size / orig_h
     else:
-        ratio = (new_size / orig_w)
+        ratio = new_size / orig_w
 
     h_resize = int(orig_h * ratio)
     w_resize = int(orig_w * ratio)
@@ -51,14 +55,18 @@ def resize(im, new_size, im_type="rgb"):
     return new_im, ratio
 
 
-def process_keystep(obs, links_bbox, cam_list=["bravo_camera", "charlie_camera", "alpha_camera"]):
+def process_keystep(
+    obs, links_bbox, cam_list=["foxtrot_camera"]
+):  # ["echo_camera","foxtrot_camera","golf_camera"]
     log_info("Processing keystep")
     rgb = []
     pc = []
     gripper_pos = obs["gripper_pos"]
     gripper_quat = obs["gripper_quat"]
     gripper_state = not obs["gripper_state"]
-    gripper_pose = np.concatenate([gripper_pos, gripper_quat, np.expand_dims(gripper_state, 0)])
+    gripper_pose = np.concatenate(
+        [gripper_pos, gripper_quat, np.expand_dims(gripper_state, 0)]
+    )
     for cam_name in cam_list:
         rgb.append(torch.from_numpy(obs[f"rgb_{cam_name}"]))
         pc.append(torch.from_numpy(obs[f"pcd_{cam_name}"]))
@@ -67,7 +75,7 @@ def process_keystep(obs, links_bbox, cam_list=["bravo_camera", "charlie_camera",
     pc = torch.stack(pc)  # (C, H, W, 3)
 
     # ------ Cropping and Resizing ------
-    crop_size = 256 # 256 = image_size
+    crop_size = 256  # 256 = image_size
     rgb = rgb.permute(0, 3, 1, 2)
     pc = pc.permute(0, 3, 1, 2)
 

@@ -15,7 +15,13 @@ import robo_maestro.envs
 from ament_index_python.packages import get_package_share_directory
 from robo_maestro.utils.helpers import *
 from robo_maestro.utils.constants import *
-from robo_maestro.utils.logger import log_info, log_warn, log_error, log_debug, log_success
+from robo_maestro.utils.logger import (
+    log_info,
+    log_warn,
+    log_error,
+    log_debug,
+    log_success,
+)
 import rclpy
 from rclpy.node import Node
 from easydict import EasyDict
@@ -23,10 +29,14 @@ import numpy as np
 import msgpack
 import requests
 import msgpack_numpy
+
 msgpack_numpy.patch()
 
+
 class Arguments(tap.Tap):
-    cam_list: list[str] = ["bravo_camera","charlie_camera","alpha_camera"]
+    cam_list: list[str] = [
+        "foxtrot_camera",
+    ]  # ["echo_camera","foxtrot_camera","golf_camera"]
     arm: str = "left"
     taskvar: str = "real_put_fruit_in_box+0"
     ip: str = "127.0.0.1"
@@ -45,32 +55,19 @@ class Arguments(tap.Tap):
 
 
 class PolicyServer:
-    def __init__(self, server_addr, save_path):
+    def __init__(self, server_addr):
         self.server_addr = server_addr
-        self.save_path = save_path
 
     def predict(self, batch):
-        log_info(f"Policy server at {self.server_addr}/predict called with batch {batch.keys()}")
-
-        # 1) pack the batch
-        data = msgpack_numpy.packb(batch)
-
-        # 2) save it to disk
-        save_batch_dir = os.path.join(self.save_path, "batch")
-        os.makedirs(save_batch_dir, exist_ok=True)
-        filename = os.path.join(
-            save_batch_dir,
-            f"step-{batch['step_id']}.msgpack"
+        log_info(
+            f"Policy server at {self.server_addr}/predict called with batch {batch.keys()}"
         )
-        with open(filename, "wb") as f:
-            f.write(data)
-        log_info(f"Saved batch to {filename}")
 
-        # 3) send it on its way
+        data = msgpack_numpy.packb(batch)
         response = requests.post(f"{self.server_addr}/predict", data=data)
         output = msgpack_numpy.unpackb(response._content)
-        action = output['action']
-        cache = output['cache']
+        action = output["action"]
+        cache = output["cache"]
 
         log_info(f"Received action of shape {action.shape} and cache from server")
 
@@ -101,7 +98,17 @@ class PolicyServer:
 
 
 class TaskEvaluator:
-    def __init__(self, env, task, variation, instructions, episode_id, links_bbox, cam_list, server_addr):
+    def __init__(
+        self,
+        env,
+        task,
+        variation,
+        instructions,
+        episode_id,
+        links_bbox,
+        cam_list,
+        server_addr,
+    ):
         self.env = env
         self.task = task
         self.variation = variation
@@ -109,14 +116,19 @@ class TaskEvaluator:
         self.episode_id = episode_id
         self.links_bbox = links_bbox
         self.cam_list = cam_list
-        self.save_path = os.path.join(DATA_DIR, 'run_policy_experiments', self.task + "+" + self.variation, f"episode_{self.episode_id}")
+        self.save_path = os.path.join(
+            DATA_DIR,
+            "run_policy_experiments",
+            self.task + "+" + self.variation,
+            f"episode_{self.episode_id}",
+        )
 
-        self.policy_server = PolicyServer(server_addr, self.save_path)
+        self.policy_server = PolicyServer(server_addr)
 
     def execute_step(self, step_id, keystep_real, cache):
         if not rclpy.ok():
             return None
-            
+
         if step_id == 0:
             cache = None
 
@@ -124,16 +136,25 @@ class TaskEvaluator:
             cache = EasyDict(cache)
 
         batch = {
-            'task_str': self.task,
-            'variation': self.variation,
-            'step_id': step_id,
-            'obs_state_dict': keystep_real,
-            'episode_id': self.episode_id,
-            'instructions': self.instructions,
-            'cache': cache,
+            "task_str": self.task,
+            "variation": self.variation,
+            "step_id": step_id,
+            "obs_state_dict": keystep_real,
+            "episode_id": self.episode_id,
+            "instructions": self.instructions,
+            "cache": cache,
         }
 
-        #action, cache = self.policy_server.predict(batch)
+        # Save batch to log dir
+        batch_data = msgpack_numpy.packb(batch)
+        batch_dir = os.path.join(self.save_path, "batch")
+        os.makedirs(batch_dir, exist_ok=True)
+        batch_file = os.path.join(batch_dir, f"step-{step_id}.msgpack")
+        with open(batch_file, "wb") as f:
+            f.write(batch_data)
+        log_info(f"Saved batch to {batch_file}")
+
+        # action, cache = self.policy_server.predict(batch)
         action, cache = self.policy_server.mock_predict(batch, step_id)
 
         keystep_real["action"] = action
@@ -147,23 +168,23 @@ class TaskEvaluator:
         obs, _, _, _, _ = self.env.step(action)
 
         keystep_real = process_keystep(
-            obs, 
+            obs,
             links_bbox=self.links_bbox,
             cam_list=self.cam_list,
         )
 
         if not rclpy.ok():
             return None
-        
+
         return keystep_real, cache
 
 
 class RunPolicyNode(Node):
     def __init__(self):
         super().__init__(
-            'run_policy_node',
-             allow_undeclared_parameters=True,
-             automatically_declare_parameters_from_overrides=True
+            "run_policy_node",
+            allow_undeclared_parameters=True,
+            automatically_declare_parameters_from_overrides=True,
         )
 
         self.args = Arguments().parse_args(known_only=True)
@@ -171,38 +192,49 @@ class RunPolicyNode(Node):
 
     def setup_environment(self):
         # Load task configurations
-        taskvars_instructions = json.load(open(
-            os.path.join(get_package_share_directory('robo_maestro'),
-                         'assets', 'taskvars_instructions.json')
-        ))
+        taskvars_instructions = json.load(
+            open(
+                os.path.join(
+                    get_package_share_directory("robo_maestro"),
+                    "assets",
+                    "taskvars_instructions.json",
+                )
+            )
+        )
 
         self.task, self.variation = self.args.taskvar.split("+")
         self.instructions = taskvars_instructions[self.args.taskvar]
 
         # Load bbox info
         links_bbox_file_path = os.path.join(
-            get_package_share_directory('robo_maestro'),
-            'assets', 'real_robot_bbox_info.pkl'
+            get_package_share_directory("robo_maestro"),
+            "assets",
+            "real_robot_bbox_info.pkl",
         )
         with open(links_bbox_file_path, "rb") as f:
             self.links_bbox = pkl.load(f)
 
         # Create environment
-        use_sim_time = self.get_parameter('use_sim_time').value
-        env = gym.make('RealRobot-BaseEnv',
-                            cam_list=self.args.cam_list,
-                            node=self,
-                            use_sim_time=use_sim_time,
-                            disable_env_checker = True, # skip need for defining action and observation spaces
-                            )
-        self.env = env.unwrapped if hasattr(env, 'unwrapped') else env
+        use_sim_time = self.get_parameter("use_sim_time").value
+        env = gym.make(
+            "RealRobot-BaseEnv",
+            cam_list=self.args.cam_list,
+            node=self,
+            use_sim_time=use_sim_time,
+            disable_env_checker=True,  # skip need for defining action and observation spaces
+        )
+        self.env = env.unwrapped if hasattr(env, "unwrapped") else env
 
         # Initialize evaluator
         self.evaluator = TaskEvaluator(
-            self.env, self.task, self.variation,
-            self.instructions, self.args.episode_id,
-            self.links_bbox, self.args.cam_list,
-            self.args.server_addr
+            self.env,
+            self.task,
+            self.variation,
+            self.instructions,
+            self.args.episode_id,
+            self.links_bbox,
+            self.args.cam_list,
+            self.args.server_addr,
         )
 
     def run(self):
@@ -226,7 +258,9 @@ class RunPolicyNode(Node):
                 step_id, keystep_real, cache
             )
             if keystep_real is None or cache is None:
-                log_error("Environment step failed, keystep_real is None or cache is None, exiting.")
+                log_error(
+                    "Environment step failed, keystep_real is None or cache is None, exiting."
+                )
                 break
 
         log_success(f"Last step completed, max steps reached")
