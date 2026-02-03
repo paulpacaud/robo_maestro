@@ -77,6 +77,14 @@ ros2 service list | grep set_io
 **Explanation:** In `use_sim_time` mode, gripper execution is skipped by design.
 **Fix:** This is expected. Use MoveIt gripper component if you want simulated gripper control.
 
+# LOOKUP failed
+Pb:
+```bash
+TF lookup failed: "prl_ur5_base" passed to lookupTransform argument target_frame does not exist.
+```
+Solution:
+
+
 ---
 
 ## General Debug Tips

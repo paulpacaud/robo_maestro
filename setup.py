@@ -54,6 +54,9 @@ setup(
     description="robo_maestro: Python Package to interact with Paris Robotics Lab UR5",
     license="Apache-2.0",
     entry_points={
-        "console_scripts": ["run_policy = robo_maestro.run_policy:main"],
+        "console_scripts": [
+            "run_policy = robo_maestro.run_policy:main",
+            "read_eef_pose = robo_maestro.read_eef_pose:main",
+        ],
     },
 )

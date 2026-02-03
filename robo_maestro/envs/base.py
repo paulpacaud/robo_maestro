@@ -75,12 +75,10 @@ class BaseEnv(gym.Env):
     def _get_obs(self, sync_record=False):
         obs = {}
 
-        gripper_pose = self.robot.eef_pose()
-        obs["gripper_pos"] = np.array(gripper_pose[0])
-        obs["gripper_quat"] = np.array(gripper_pose[1])
-        obs["gripper_state"] = np.array(gripper_pose[2])
-
-        # Sensors
+        # Sensors — read cameras first; wait_for_message internally
+        # calls spin_until_future_complete which flushes pending TF
+        # callbacks and ensures the TF buffer is up to date.
+        cam_world_T_cam = {}
         for cam_name in self.robot.cam_list:
             cam = self.robot.cameras[cam_name]
 
@@ -112,11 +110,19 @@ class BaseEnv(gym.Env):
             pcd = transform_pcd(pcd, world_T_cam)
             obs[f"pcd_{cam_name}"] = pcd
 
-            # gripper attention
+            cam_world_T_cam[cam_name] = world_T_cam
+
+        # Read EEF pose after cameras — TF buffer is now up to date.
+        gripper_pose = self.robot.eef_pose()
+        obs["gripper_pos"] = np.array(gripper_pose[0])
+        obs["gripper_quat"] = np.array(gripper_pose[1])
+        obs["gripper_state"] = np.array(gripper_pose[2])
+
+        # gripper attention (projected into each camera)
+        for cam_name in self.robot.cam_list:
             K = self.cam_info[f"intrinsics_{cam_name}"]["K"]
-            gr_px = project(gripper_pose[:2], np.linalg.inv(world_T_cam), K)
-            gr_x, gr_y = gr_px[0], gr_px[1]
-            obs[f"gripper_uv_{cam_name}"] = [gr_x, gr_y]
+            gr_px = project(gripper_pose[:2], np.linalg.inv(cam_world_T_cam[cam_name]), K)
+            obs[f"gripper_uv_{cam_name}"] = [gr_px[0], gr_px[1]]
 
         obs["robot_info"] = self.robot.links_pose()
 

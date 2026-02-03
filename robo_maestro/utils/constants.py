@@ -89,7 +89,7 @@ ROBOT_LINKS = {
 }
 
 # POLICY PARAMETERS
-MAX_STEPS = 25
+MAX_STEPS = 4
 
 # CAMERA PARAMETERS
 # Camera poses are now obtained from TF at runtime rather than hardcoded.
