@@ -18,8 +18,9 @@ def launch_setup(context):
     use_sim_time = LaunchConfiguration("use_sim_time")
     task = LaunchConfiguration("task")
     var = LaunchConfiguration("var")
-    data_dir = LaunchConfiguration("data_dir")
     cam_list = LaunchConfiguration("cam_list")
+    start_episode_id = LaunchConfiguration("start_episode_id")
+    data_dir = LaunchConfiguration("data_dir")
     pos_step = LaunchConfiguration("pos_step")
     rot_step = LaunchConfiguration("rot_step")
     crop_size = LaunchConfiguration("crop_size")
@@ -46,8 +47,9 @@ def launch_setup(context):
                 "use_sim_time": use_sim_time,
                 "task": task,
                 "var": var,
-                "data_dir": data_dir,
                 "cam_list": cam_list,
+                "start_episode_id": start_episode_id,
+                "data_dir": data_dir,
                 "pos_step": pos_step,
                 "rot_step": rot_step,
                 "crop_size": crop_size,
@@ -68,23 +70,25 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "task",
-            default_value="my_task",
-            description="Task name for the dataset",
+            description="Task name for the dataset (required)",
         ),
         DeclareLaunchArgument(
             "var",
-            default_value="0",
-            description="Task variant index",
+            description="Task variant index (required)",
+        ),
+        DeclareLaunchArgument(
+            "cam_list",
+            description="Comma-separated camera names (required)",
+        ),
+        DeclareLaunchArgument(
+            "start_episode_id",
+            description="Episode index to start from (required). Use 0 for a new dataset, "
+            "or the next episode index to append to an existing one",
         ),
         DeclareLaunchArgument(
             "data_dir",
             default_value="/home/ros/share/data",
             description="Root directory for dataset storage",
-        ),
-        DeclareLaunchArgument(
-            "cam_list",
-            default_value="foxtrot_camera",
-            description="Comma-separated camera names",
         ),
         DeclareLaunchArgument(
             "pos_step",

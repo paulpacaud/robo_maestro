@@ -35,7 +35,7 @@ msgpack_numpy.patch()
 
 class Arguments(tap.Tap):
     cam_list: list[str] = [
-        "foxtrot_camera",
+        "echo_camera",
     ]  # ["echo_camera","foxtrot_camera","golf_camera"]
     arm: str = "left"
     taskvar: str = "real_put_fruit_in_box+0"

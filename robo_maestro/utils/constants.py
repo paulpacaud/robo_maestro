@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import numpy as np
 
 # PATHS
 DATA_DIR = "/home/ros/share/data"
+TASKVARS_INSTRUCTIONS_PATH = Path(__file__).parent / "taskvars_instructions.json"
 
 # WORKSPACE PARAMETERS
 # The first sub-array [-0.50, -0.54, 0.01] is the minimum allowed position: x, y, z.
@@ -13,13 +16,13 @@ WORKSPACE = {
 
 # ROBOT CONTROL PARAMETERS
 DEFAULT_ROBOT_ACTION = [
-    -0.25,
-    0,
-    0.3,
-    -7.21724635e-05,
-    9.99980612e-01,
-    -4.89975834e-05,
-    -6.22642981e-03,
+    -0.17,
+    -0.05,
+    0.25,
+    -0.01592672,
+    0.99976501,
+    0.00417359,
+    0.01410128,
     0,
 ]
 # MOCK_ROBOT_ACTION_1 = [-0.25,  0.2,  0.65, -7.21724635e-05,  9.99980612e-01, -4.89975834e-05, -6.22642981e-03, 1]
@@ -95,7 +98,7 @@ MAX_STEPS = 4
 # Camera poses are now obtained from TF at runtime rather than hardcoded.
 CAM_INFO = {}
 CAM_TF_TOPIC = {
-    # "echo_camera": "echo_camera_color_optical_frame",
+    "echo_camera": "echo_camera_color_optical_frame",
     "foxtrot_camera": "foxtrot_camera_color_optical_frame",
-    # "golf_camera": "golf_camera_color_optical_frame",
+    "golf_camera": "golf_camera_color_optical_frame",
 }

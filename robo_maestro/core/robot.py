@@ -111,6 +111,7 @@ class Robot:
         """
         log_info('Opening gripper...')
         self.gripper_move(0, low_force_mode, wait)
+        self.gripper_state = 0
 
     def close_gripper(self, low_force_mode=False, wait=True):  # OK
         """Close the gripper.
@@ -124,6 +125,7 @@ class Robot:
         """
         log_info('Closing gripper...')
         self.gripper_move(1, low_force_mode, wait)
+        self.gripper_state = 1
 
     def gripper_move(self, target, low_force_mode=False, wait=True):  # OK
         self._set_digital_out(1, 17, 1 if low_force_mode else 0)
@@ -269,10 +271,10 @@ class Robot:
             log_warn(f"Safety _limit_position() function called and limited the pos to: {new_position}")
         return new_position
 
-    def go_to_pose(self, action, cartesian_only=False):
+    def go_to_pose(self, action, cartesian_only=False, sleep_time=3.0):
         """
         For the arm, we will first try cartesian planning, and fall back to vanilla RTT motion planner if it fails.
-        For the gripper, we will just execute the open/close command.
+        For the gripper, we will just execute the open/close command (skipped if already in target state).
         """
         log_info(f"target action: {', '.join(map(str, action))}")
 
@@ -291,19 +293,21 @@ class Robot:
             self.ur,
             self.left_arm,
             cartesian_only,
-            sleep_time=3.0
+            sleep_time=sleep_time
         )
 
-        # Gripper
+        # Gripper — only actuate if state changed
         target_grip_str = "open" if target_grip == 0 else "close"
-        # self.left_gripper.set_goal_state(configuration_name=target_grip_str)
-        if self.use_sim_time:
+        target_grip_int = 0 if target_grip_str == "open" else 1
+        if target_grip_int == self.gripper_state:
+            success_gripper = True
+        elif self.use_sim_time:
             success_gripper = True
             log_info("Skipping gripper execution in simulation")
         else:
             self._execute_gripper(target_grip_str)
-        self.gripper_state = 0 if target_grip_str == "open" else 1
-        success_gripper = True
+            success_gripper = True
+        self.gripper_state = target_grip_int
 
         return success_arm and success_gripper
 

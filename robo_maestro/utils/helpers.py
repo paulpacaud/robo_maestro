@@ -56,7 +56,7 @@ def resize(im, new_size, im_type="rgb"):
 
 
 def process_keystep(
-    obs, links_bbox, cam_list=["foxtrot_camera"]
+    obs, links_bbox, cam_list=["echo_camera"]
 ):  # ["echo_camera","foxtrot_camera","golf_camera"]
     log_info("Processing keystep")
     rgb = []

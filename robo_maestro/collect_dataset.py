@@ -1,24 +1,145 @@
 #!/usr/bin/env python3
 """
-ROS 2 node – Joystick teleop + keystep data collection.
+ROS 2 node -- Joystick teleop + keystep data collection.
 
 Teleoperate the robot with a DualSense PS5 controller (via pygame),
 record keysteps at desired poses, save episodes to LMDB, and manage
 the dataset session.
 
-Usage:
-ros2 launch robo_maestro collect_dataset.launch.py use_sim_time:=false
+Usage
+-----
+# Required args: task, var, cam_list, start_episode_id.
+ros2 launch robo_maestro collect_dataset.launch.py \\
+    use_sim_time:=false \\
+    task:=put_fruits_in_plate \\
+    var:=0 \\
+    cam_list:=foxtrot_camera \\
+    start_episode_id:=0
 
-# By default this uses task="my_task", var=0, cam_list=["foxtrot_camera"].
-# To customize, pass CLI args after '--':
-ros2 launch robo_maestro collect_dataset.launch.py \
-    use_sim_time:=false \
-    task:=test_task \
-    var:=0 \
+# Multiple cameras: pass a comma-separated string (no spaces).
+ros2 launch robo_maestro collect_dataset.launch.py \\
+    use_sim_time:=false \\
+    task:=put_fruits_in_plate \\
+    var:=0 \\
+    cam_list:=foxtrot_camera,echo_camera,golf_camera \\
+    start_episode_id:=0
+
+# Append to an existing dataset (e.g. 5 episodes already collected):
+ros2 launch robo_maestro collect_dataset.launch.py \\
+    use_sim_time:=false \\
+    task:=put_fruits_in_plate \\
+    var:=0 \\
+    cam_list:=foxtrot_camera \\
+    start_episode_id:=5
+
+# Optional args (shown with defaults):
+ros2 launch robo_maestro collect_dataset.launch.py \\
+    use_sim_time:=false \\
+    task:=put_fruits_in_plate \\
+    var:=0 \\
+    cam_list:=foxtrot_camera \\
+    start_episode_id:=0 \\
+    pos_step:=0.02 \\
+    rot_step:=5.0 \\
+    crop_size:=256 \\
     debug:=true
 
+The task instruction is loaded automatically from
+robo_maestro/utils/taskvars_instructions.json using the key "{task}+{var}".
+
+A meta.json file is saved in the output directory (<data_dir>/<task>+<var>/)
+with task info, camera intrinsics and extrinsics.
+
+DualSense PS5 Controller Mapping
+---------------------------------
+
+Movement (analog sticks -- continuous, proportional)
+
+  Stick input               Robot effect          Detail
+  -------------------------------------------------------------------------
+  Left stick  up/down       Y position (L / R)    Push up   = robot left
+  Left stick  left/right    X position (fwd/back) Push left = robot forward
+  Right stick up/down       Z position (up/down)  Push up   = robot up
+  Right stick left/right    Z rotation (yaw)      Push right = CW
+
+  Step size: pos_step (default 2 cm), deadzone: 0.20
+
+Rotation (bumpers / triggers -- hold to rotate, 5 deg/step)
+
+  L1 (hold)   Roll  -X rotation
+  R1 (hold)   Roll  +X rotation
+  L2 (hold)   Pitch -Y rotation
+  R2 (hold)   Pitch +Y rotation
+
+Gripper (one-shot, immediate)
+
+  Circle      Close gripper
+  Triangle    Open gripper
+
+Data collection (one-shot)
+
+  Cross        Record keystep at current pose
+  D-pad up     Reset robot to home pose
+  D-pad down   Undo last keystep
+  D-pad left   Save episode to LMDB + reset robot
+  D-pad right  Undo last saved episode (delete from LMDB)
+  Share        Discard entire episode + reset robot
+  Options      Finish session and exit
+  Square
+
+Controller sketch
+-----------------
+
+    +--------------------------------------+
+    |  +------+                  +------+  |
+    |  |  L1  |  Roll -          |  R1  |  Roll +
+    |  +------+                  +------+  |
+    |  +------+                  +------+  |
+    |  |  L2  |  Pitch -         |  R2  |  Pitch +
+    |  +------+                  +------+  |
+    |                                      |
+    |    +---+                             |
+    |    | ^ | D-up   = Home               |
+    |  +-|   |-+    [Share] [Opts]         |
+    |  |< | >|     Discard  Finish        |
+    |  +-|   |-+  D-left = Save episode   |
+    |    | v | D-down = Undo keystep       |
+    |    +---+      +-+                    |
+    |             +-|^|-+                  |
+    |             |  Y  | Up/Dn = Z pos    |
+    |  +--------+ |<   >| L/R   = Yaw     |
+    |  |  Left  | +-| |-+                  |
+    |  |  Stick |   +-+  Right Stick       |
+    |  |        |                          |
+    |  | Up/Dn  |    /\\    Triangle        |
+    |  | = Y    |   /  \\   OPEN GRIPPER    |
+    |  |        |  ------                  |
+    |  | L/R    |       O  Circle          |
+    |  | = X    |      CLOSE GRIPPER       |
+    |  |        |       ><  Cross          |
+    |  +--------+      RECORD KEYSTEP      |
+    |                                      |
+    +--------------------------------------+
+
+    LEFT STICK              RIGHT STICK
+    +---------+             +----------+
+    |    ^    |             |    ^     |
+    |  Left   |             |  Up (Z)  |
+    |< Fwd  >|             |<  Yaw  >|
+    |  Right  |             | Down (Z) |
+    |    v    |             |    v     |
+    +---------+             +----------+
+
+DualSense axis mapping (Linux hid_playstation driver)
+
+  Axis 0: Left stick X     Axis 1: Left stick Y
+  Axis 2: L2 trigger        Axis 3: Right stick X
+  Axis 4: Right stick Y     Axis 5: R2 trigger
+
+  Axes 2/5 rest at -1.0 (not used; rotation via button events).
 """
 
+import json
 import pickle as pkl
 import threading
 import time
@@ -37,7 +158,12 @@ from rclpy.node import Node
 from scipy.spatial.transform import Rotation
 
 import robo_maestro.envs  # noqa: F401 – registers gym envs
-from robo_maestro.utils.constants import DATA_DIR, DEFAULT_ROBOT_ACTION
+from robo_maestro.core.tf import pos_euler_to_hom
+from robo_maestro.utils.constants import (
+    DATA_DIR,
+    DEFAULT_ROBOT_ACTION,
+    TASKVARS_INSTRUCTIONS_PATH,
+)
 from robo_maestro.utils.helpers import crop_center, resize
 from robo_maestro.utils.logger import log_error, log_info, log_success, log_warn
 
@@ -48,12 +174,13 @@ msgpack_numpy.patch()
 # Dataset – LMDB + msgpack episode storage
 # ---------------------------------------------------------------------------
 class Dataset:
-    """Stores keystep episodes in LMDB, matching the legacy data format."""
+    """Stores keystep episodes in LMDB."""
 
     def __init__(
         self,
         output_dir: str,
         camera_list: list[str],
+        start_episode_id: int = 0,
         crop_size: int | None = None,
         links_bbox: dict | None = None,
     ):
@@ -61,10 +188,41 @@ class Dataset:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         self.lmdb_env = lmdb.open(str(output_dir), map_size=int(1024**4))
         self.data: list[dict] = []
-        self.episode_idx = 0
         self.camera_list = camera_list
         self.crop_size = crop_size
         self.links_bbox = links_bbox
+
+        # Validate start_episode_id against existing episodes
+        self._validate_start_episode_id(start_episode_id)
+        self.episode_idx = start_episode_id
+
+    def _validate_start_episode_id(self, start_episode_id: int):
+        """Check that start_episode_id is exactly the next available index."""
+        with self.lmdb_env.begin() as txn:
+            existing_keys = {key.decode() for key, _ in txn.cursor()}
+        # Find the expected next id: number of existing episodes
+        existing_count = len(existing_keys)
+
+        if start_episode_id < existing_count:
+            log_error(
+                f"start_episode_id={start_episode_id} already exists in "
+                f"{self.output_dir} (dataset has {existing_count} episodes: "
+                f"episode0..episode{existing_count - 1}). "
+                f"Use start_episode_id:={existing_count} to append."
+            )
+            raise RuntimeError(
+                f"start_episode_id={start_episode_id} conflicts with existing data"
+            )
+        if start_episode_id > existing_count:
+            log_error(
+                f"start_episode_id={start_episode_id} leaves a gap — "
+                f"dataset has {existing_count} episodes "
+                f"(episode0..episode{existing_count - 1}). "
+                f"Use start_episode_id:={existing_count} to append."
+            )
+            raise RuntimeError(
+                f"start_episode_id={start_episode_id} leaves a gap in episode indices"
+            )
 
     # -- per-episode helpers ------------------------------------------------
 
@@ -75,42 +233,41 @@ class Dataset:
         gripper_pos = obs["gripper_pos"]
         gripper_quat = obs["gripper_quat"]
         gripper_pose = np.concatenate([gripper_pos, gripper_quat])
-        gripper_state = not obs["gripper_state"]
+        gripper_state = obs["gripper_state"]
 
-        rgb, pc, depth = [], [], []
-        gripper_uv: dict = {}
+        rgb, xyz, depth = [], [], []
         for cam_name in self.camera_list:
             rgb.append(torch.from_numpy(obs[f"rgb_{cam_name}"]))
-            pc.append(torch.from_numpy(obs[f"pcd_{cam_name}"]))
+            xyz.append(torch.from_numpy(obs[f"pcd_{cam_name}"]))
             depth.append(torch.from_numpy(obs[f"depth_{cam_name}"]))
-            gripper_uv[cam_name] = obs[f"gripper_uv_{cam_name}"]
 
         rgb = torch.stack(rgb)
-        pc = torch.stack(pc)
+        xyz = torch.stack(xyz)
         depth = torch.stack(depth)
         action = np.concatenate([gripper_pose, np.array([int(gripper_state)])], axis=-1)
 
         if self.crop_size:
             rgb = rgb.permute(0, 3, 1, 2)
-            pc = pc.permute(0, 3, 1, 2)
-            depth = depth.permute(0, 3, 1, 2)
+            xyz = xyz.permute(0, 3, 1, 2)
+            # Depth is single-channel (N, H, W) — add channel dim for resize/crop
+            if depth.dim() == 3:
+                depth = depth.unsqueeze(1)  # (N, H, W) → (N, 1, H, W)
+            else:
+                depth = depth.permute(0, 3, 1, 2)
 
             rgb, ratio = resize(rgb, self.crop_size, im_type="rgb")
-            pc, _ = resize(pc, self.crop_size, im_type="pc")
+            xyz, _ = resize(xyz, self.crop_size, im_type="pc")
             depth, _ = resize(depth, self.crop_size, im_type="pc")
             rgb, start_x, start_y = crop_center(rgb, self.crop_size, self.crop_size)
-            pc, start_x, start_y = crop_center(pc, self.crop_size, self.crop_size)
+            xyz, start_x, start_y = crop_center(xyz, self.crop_size, self.crop_size)
             depth, start_x, start_y = crop_center(depth, self.crop_size, self.crop_size)
 
             rgb = rgb.permute(0, 2, 3, 1)
-            pc = pc.permute(0, 2, 3, 1)
-            depth = depth.permute(0, 2, 3, 1)
-
-            for cam_name, uv in gripper_uv.items():
-                gripper_uv[cam_name] = [
-                    int(uv[0] * ratio) - start_x,
-                    int(uv[1] * ratio) - start_y,
-                ]
+            xyz = xyz.permute(0, 2, 3, 1)
+            if depth.shape[1] == 1:
+                depth = depth.squeeze(1)  # (N, 1, H, W) → (N, H, W)
+            else:
+                depth = depth.permute(0, 2, 3, 1)
 
         robot_info = obs["robot_info"]
         bbox_info: dict = {}
@@ -120,10 +277,9 @@ class Dataset:
             bbox_info[f"{link_name}_bbox"] = self.links_bbox[link_name]
 
         keystep = {
+            "xyz": xyz,
             "rgb": rgb,
-            "pc": pc,
             "depth": depth,
-            "gripper_uv": gripper_uv,
             "action": action,
             "bbox_info": bbox_info,
             "pose_info": pose_info,
@@ -133,29 +289,26 @@ class Dataset:
     # -- episode lifecycle --------------------------------------------------
 
     def save(self):
-        rgbs, pcs, depths = [], [], []
-        gripper_uv_list: list = []
+        xyzs, rgbs, depths = [], [], []
         actions: list = []
         bbox_info_list: list = []
         pose_info_list: list = []
 
         for ks in self.data:
+            xyzs.append(ks["xyz"])
             rgbs.append(ks["rgb"])
-            pcs.append(ks["pc"])
             depths.append(ks["depth"])
-            gripper_uv_list.append(ks["gripper_uv"])
             actions.append(ks["action"])
             bbox_info_list.append(ks["bbox_info"])
             pose_info_list.append(ks["pose_info"])
 
         outs = {
+            "xyz": torch.stack(xyzs).float().numpy(),
             "rgb": torch.stack(rgbs).numpy().astype(np.uint8),
-            "pc": torch.stack(pcs).float().numpy(),
             "depth": torch.stack(depths).float().numpy(),
-            "gripper_uv": gripper_uv_list,
-            "action": np.stack(actions).astype(np.float32),
             "bbox_info": bbox_info_list,
             "pose_info": pose_info_list,
+            "action": np.stack(actions).astype(np.float32),
         }
 
         txn = self.lmdb_env.begin(write=True)
@@ -166,6 +319,17 @@ class Dataset:
         txn.commit()
         self.episode_idx += 1
         self.reset()
+
+    def undo_last_episode(self) -> bool:
+        """Delete the most recently saved episode from LMDB."""
+        if self.episode_idx == 0:
+            return False
+        self.episode_idx -= 1
+        key = f"episode{self.episode_idx}".encode("ascii")
+        txn = self.lmdb_env.begin(write=True)
+        txn.delete(key)
+        txn.commit()
+        return True
 
     def done(self):
         self.lmdb_env.close()
@@ -185,7 +349,10 @@ class CollectDatasetNode(Node):
         # Read configuration from ROS2 parameters (set by launch file)
         def _str_param(name, default):
             try:
-                return self.get_parameter(name).get_parameter_value().string_value or default
+                return (
+                    self.get_parameter(name).get_parameter_value().string_value
+                    or default
+                )
             except rclpy.exceptions.ParameterNotDeclaredException:
                 return default
 
@@ -217,18 +384,79 @@ class CollectDatasetNode(Node):
             except (rclpy.exceptions.ParameterNotDeclaredException, ValueError):
                 return default
 
-        cam_str = _str_param("cam_list", "foxtrot_camera")
+        # Required parameters — fail fast if not provided
+        def _require_str(name):
+            try:
+                v = self.get_parameter(name).get_parameter_value().string_value
+                if not v:
+                    raise ValueError
+                return v
+            except (rclpy.exceptions.ParameterNotDeclaredException, ValueError):
+                raise RuntimeError(
+                    f"Required parameter '{name}' not set. "
+                    "Pass it via the launch file."
+                )
+
+        def _require_int(name):
+            try:
+                p = self.get_parameter(name)
+                v = p.get_parameter_value()
+                # Launch args may arrive as string, int, or double depending
+                # on how ROS 2 infers the type.
+                if v.type == 2:  # PARAMETER_INTEGER
+                    return v.integer_value
+                if v.type == 3:  # PARAMETER_DOUBLE
+                    return int(v.double_value)
+                if v.type == 4 and v.string_value:  # PARAMETER_STRING
+                    return int(v.string_value)
+                # Last resort: try the raw Parameter value
+                if p.value is not None:
+                    return int(p.value)
+                raise ValueError
+            except (
+                rclpy.exceptions.ParameterNotDeclaredException,
+                ValueError,
+                TypeError,
+            ):
+                raise RuntimeError(
+                    f"Required parameter '{name}' not set. "
+                    "Pass it via the launch file."
+                )
+
+        self.task = _require_str("task")
+        self.var = _require_int("var")
+        cam_str = _require_str("cam_list")
         self.cam_list = [c.strip() for c in cam_str.split(",")]
-        self.task = _str_param("task", "my_task")
-        self.var = _int_param("var", 0)
+        self.start_episode_id = _require_int("start_episode_id")
+
+        # Load task instruction from JSON
+        taskvar = f"{self.task}+{self.var}"
+        with open(TASKVARS_INSTRUCTIONS_PATH) as f:
+            taskvars_instructions = json.load(f)
+        if taskvar not in taskvars_instructions:
+            log_error(
+                f"Task variant '{taskvar}' not found in "
+                f"{TASKVARS_INSTRUCTIONS_PATH}. "
+                f"Available: {list(taskvars_instructions.keys())}"
+            )
+            raise RuntimeError(f"Unknown task variant: '{taskvar}'")
+        self.task_instruction = taskvars_instructions[taskvar]
+
         self.data_dir = _str_param("data_dir", DATA_DIR)
-        self.pos_step = _double_param("pos_step", 0.02)
-        self.rot_step = _double_param("rot_step", 5.0)
+        self.pos_step = _double_param("pos_step", 0.04)
+        self.rot_step = _double_param("rot_step", 10)
         self.crop_size = _int_param("crop_size", 256)
         self.debug = _bool_param("debug", False)
 
         self.gripper_state = 0  # 0 = open, 1 = closed
         self.running = True
+        # Track rotation button held-state via events, not polling,
+        # to avoid DualSense analog-trigger drift on L2/R2.
+        self._rot_buttons_held = {4: False, 5: False, 6: False, 7: False}
+        # Commanded EEF state — deltas accumulate here instead of re-reading
+        # the measured pose (which may lag behind during motion).
+        self._cmd_pos = None  # initialized on first teleop call
+        self._cmd_quat = None
 
         log_info(
             f"Config: task={self.task} var={self.var} cam_list={self.cam_list} "
@@ -263,6 +491,7 @@ class CollectDatasetNode(Node):
         self.dataset = Dataset(
             str(output_dir),
             camera_list=self.cam_list,
+            start_episode_id=self.start_episode_id,
             crop_size=self.crop_size,
             links_bbox=self.links_bbox,
         )
@@ -277,13 +506,55 @@ class CollectDatasetNode(Node):
         self.joy.init()
         log_success(f"Joystick detected: {self.joy.get_name()}")
 
+        self._save_meta()
+
         log_success("Environment ready. Use joystick to teleoperate.")
+
+    # -- metadata -----------------------------------------------------------
+
+    def _save_meta(self):
+        """Write meta.json with task info, camera intrinsics and extrinsics."""
+        cameras = {}
+        for cam_name in self.cam_list:
+            intrinsics = self.env.cam_info[f"intrinsics_{cam_name}"]
+            cam_pose = self.env.robot.cameras[cam_name].get_pose()
+            cam_pos, cam_euler = cam_pose
+            world_T_cam = pos_euler_to_hom(cam_pos, cam_euler)
+
+            cameras[cam_name] = {
+                "intrinsics": {
+                    "height": int(intrinsics["height"]),
+                    "width": int(intrinsics["width"]),
+                    "fx": float(intrinsics["fx"]),
+                    "fy": float(intrinsics["fy"]),
+                    "ppx": float(intrinsics["ppx"]),
+                    "ppy": float(intrinsics["ppy"]),
+                    "K": intrinsics["K"].tolist(),
+                },
+                "extrinsics": {
+                    "pos": [float(v) for v in cam_pos],
+                    "euler": [float(v) for v in cam_euler],
+                    "world_T_cam": world_T_cam.tolist(),
+                },
+            }
+
+        meta = {
+            "task": self.task,
+            "task_instruction": self.task_instruction,
+            "cam_list": self.cam_list,
+            "cameras": cameras,
+        }
+
+        meta_path = Path(self.dataset.output_dir) / "meta.json"
+        with open(meta_path, "w") as f:
+            json.dump(meta, f, indent=2)
+        log_info(f"Saved metadata to {meta_path}")
 
     # -- main loop ----------------------------------------------------------
 
     def run(self):
         """Synchronous polling loop (runs in main thread)."""
-        deadzone = 0.15
+        deadzone = 0.20
 
         while self.running:
             pygame.event.pump()
@@ -291,11 +562,22 @@ class CollectDatasetNode(Node):
             # --- Discrete button events (one-shot) ---
             for event in pygame.event.get():
                 if event.type == pygame.JOYBUTTONDOWN:
+                    if event.button in self._rot_buttons_held:
+                        self._rot_buttons_held[event.button] = True
                     self._handle_button(event.button)
+                elif event.type == pygame.JOYBUTTONUP:
+                    if event.button in self._rot_buttons_held:
+                        self._rot_buttons_held[event.button] = False
                 elif event.type == pygame.JOYHATMOTION:
                     hat = event.value  # (x, y)
                     if hat[1] == 1:  # D-pad up
                         self._reset_to_home()
+                    elif hat[1] == -1:  # D-pad down
+                        self._undo_last_keystep()
+                    elif hat[0] == -1:  # D-pad left
+                        self._save_episode()
+                    elif hat[0] == 1:  # D-pad right
+                        self._undo_last_episode()
 
             if not self.running:
                 break
@@ -314,11 +596,11 @@ class CollectDatasetNode(Node):
         elif button == 1:  # Circle – close gripper
             self.gripper_state = 1
             log_info("Gripper → CLOSED")
+            self.env.robot.close_gripper()
         elif button == 2:  # Triangle – open gripper
             self.gripper_state = 0
             log_info("Gripper → OPEN")
-        elif button == 3:  # Square – save episode
-            self._save_episode()
+            self.env.robot.open_gripper()
         elif button == 8:  # Share – discard episode
             self._discard_episode()
         elif button == 9:  # Options – finish session
@@ -327,25 +609,16 @@ class CollectDatasetNode(Node):
     # -- teleop -------------------------------------------------------------
 
     def _read_and_apply_teleop(self, deadzone: float):
-        # Read axes
+        # Read axes – DualSense on Linux (hid_playstation driver):
+        #   0: left stick X    1: left stick Y
+        #   2: L2 trigger      3: right stick X
+        #   4: right stick Y   5: R2 trigger
+        # Axes 2/5 (triggers) rest at -1.0; we ignore them here since
+        # rotation is handled via button events.
         ax_lx = self.joy.get_axis(0)  # left stick X  → Y pos
         ax_ly = self.joy.get_axis(1)  # left stick Y  → X pos
-        ax_rx = self.joy.get_axis(2)  # right stick X → Z rot (yaw)
-        ax_ry = self.joy.get_axis(3)  # right stick Y → Z pos
-
-        # Rotation buttons
-        rot_dx = 0.0
-        rot_dy = 0.0
-        rot_dz = 0.0
-
-        if self.joy.get_button(4):  # L1 → X-rot negative
-            rot_dx = -self.rot_step
-        if self.joy.get_button(5):  # R1 → X-rot positive
-            rot_dx = self.rot_step
-        if self.joy.get_button(6):  # L2 click → Y-rot negative
-            rot_dy = -self.rot_step
-        if self.joy.get_button(7):  # R2 click → Y-rot positive
-            rot_dy = self.rot_step
+        ax_rx = self.joy.get_axis(3)  # right stick X → Z rot (yaw)
+        ax_ry = self.joy.get_axis(4)  # right stick Y → Z pos
 
         # Apply deadzone
         def dz(v):
@@ -355,6 +628,21 @@ class CollectDatasetNode(Node):
         ax_ly = dz(ax_ly)
         ax_rx = dz(ax_rx)
         ax_ry = dz(ax_ry)
+
+        # Rotation buttons — use event-tracked state instead of get_button()
+        # polling to avoid DualSense analog trigger drift on L2/R2
+        rot_dx = 0.0
+        rot_dy = 0.0
+        rot_dz = 0.0
+
+        if self._rot_buttons_held[4]:  # L1 → X-rot negative
+            rot_dx = -self.rot_step
+        if self._rot_buttons_held[5]:  # R1 → X-rot positive
+            rot_dx = self.rot_step
+        if self._rot_buttons_held[6]:  # L2 → Y-rot negative
+            rot_dy = -self.rot_step
+        if self._rot_buttons_held[7]:  # R2 → Y-rot positive
+            rot_dy = self.rot_step
 
         # Z-rotation from right stick X
         if abs(ax_rx) > 0:
@@ -380,19 +668,21 @@ class CollectDatasetNode(Node):
                 f"rot: dx={rot_dx:.1f} dy={rot_dy:.1f} dz={rot_dz:.1f}"
             )
 
-        # Current EEF pose
-        eef = self.env.robot.eef_pose()
-        current_pos = eef[0]  # np.array([x, y, z])
-        current_quat = eef[1]  # np.array([qx, qy, qz, qw])
+        # Use commanded pose (not measured) to avoid oscillation from
+        # reading the EEF mid-motion.  Seed from measured pose on first call.
+        if self._cmd_pos is None:
+            eef = self.env.robot.eef_pose()
+            self._cmd_pos = eef[0].copy()
+            self._cmd_quat = eef[1].copy()
 
         # Position delta
-        new_pos = current_pos.copy()
-        new_pos[0] += -ax_ly * self.pos_step  # left stick Y → X (forward/back)
-        new_pos[1] += ax_lx * self.pos_step  # left stick X → Y (left/right)
+        new_pos = self._cmd_pos.copy()
+        new_pos[0] += -ax_lx * self.pos_step  # left stick X → X (left=fwd, right=back)
+        new_pos[1] += ax_ly * self.pos_step  # left stick Y → Y (up=left, down=right)
         new_pos[2] += -ax_ry * self.pos_step  # right stick Y → Z (up/down)
 
         # Orientation delta (local-frame rotation)
-        R_current = Rotation.from_quat(current_quat)  # [qx, qy, qz, qw]
+        R_current = Rotation.from_quat(self._cmd_quat)
         R_delta = Rotation.from_euler("xyz", [rot_dx, rot_dy, rot_dz], degrees=True)
         R_new = R_current * R_delta  # local-frame rotation
         new_quat = R_new.as_quat()  # [qx, qy, qz, qw]
@@ -410,45 +700,79 @@ class CollectDatasetNode(Node):
         ]
 
         log_info(f"Teleop → go_to_pose({action})")
-        self.env.robot.go_to_pose(action)
+        self.env.robot.go_to_pose(action, cartesian_only=True, sleep_time=0.5)
+
+        # Update commanded state so next delta builds on the target, not
+        # a stale measured pose.
+        self._cmd_pos = np.array(new_pos)
+        self._cmd_quat = np.array(new_quat)
 
     # -- keystep / episode actions ------------------------------------------
 
+    @property
+    def _tag(self):
+        """Log prefix: [task+var] [ep N] [ks M]"""
+        ep = self.dataset.episode_idx
+        ks = len(self.dataset.data)
+        return f"[{self.task}+{self.var}] [ep {ep}] [ks {ks}]"
+
     def _record_keystep(self):
-        log_info("Recording keystep ...")
+        log_info(f"{self._tag} Recording keystep ...")
         obs = self.env._get_obs()
         self.dataset.add_keystep(obs)
-        log_success(f"Keystep {len(self.dataset.data)} recorded")
+        log_success(f"{self._tag} Keystep recorded")
+
+    def _undo_last_keystep(self):
+        if not self.dataset.data:
+            log_warn(f"{self._tag} No keysteps to undo.")
+            return
+        self.dataset.data.pop()
+        log_success(f"{self._tag} Last keystep removed.")
+
+    def _reset_commanded_pose(self):
+        """Clear commanded pose so it re-seeds from measured EEF on next teleop step."""
+        self._cmd_pos = None
+        self._cmd_quat = None
 
     def _save_episode(self):
         if not self.dataset.data:
-            log_warn("No keysteps to save – record at least one keystep first.")
+            log_warn(f"{self._tag} No keysteps to save.")
             return
-        ep = self.dataset.episode_idx
-        log_info(f"Saving episode {ep} ({len(self.dataset.data)} keysteps) ...")
+        log_info(f"{self._tag} Saving episode ...")
         self.dataset.save()
-        log_success(f"Episode {ep} saved. Resetting robot ...")
+        log_success(f"{self._tag} Episode saved. Resetting robot ...")
         self.env.robot.reset()
-        log_success("Robot reset. Ready for next episode.")
+        self._reset_commanded_pose()
+        log_success(f"{self._tag} Robot reset. Ready for next episode.")
+
+    def _undo_last_episode(self):
+        if self.dataset.undo_last_episode():
+            log_success(f"{self._tag} Previous episode deleted from LMDB.")
+        else:
+            log_warn(f"{self._tag} No saved episodes to undo.")
 
     def _discard_episode(self):
         n = len(self.dataset.data)
         self.dataset.reset()
-        log_warn(f"Episode discarded ({n} keysteps dropped). Resetting robot ...")
+        log_warn(
+            f"{self._tag} Episode discarded ({n} keysteps dropped). Resetting robot ..."
+        )
         self.env.robot.reset()
-        log_success("Robot reset. Ready for next episode.")
+        self._reset_commanded_pose()
+        log_success(f"{self._tag} Robot reset. Ready for next episode.")
 
     def _reset_to_home(self):
-        log_info("Resetting robot to home pose ...")
+        log_info(f"{self._tag} Resetting robot to home pose ...")
         self.env.robot.reset()
-        log_success("Robot at home pose.")
+        self._reset_commanded_pose()
+        log_success(f"{self._tag} Robot at home pose.")
 
     def _finish_session(self):
-        log_info("Finishing session ...")
+        log_info(f"{self._tag} Finishing session ...")
         self.dataset.done()
         log_success(
-            f"Session finished. {self.dataset.episode_idx} episode(s) saved to "
-            f"{self.dataset.output_dir}"
+            f"[{self.task}+{self.var}] Session finished. "
+            f"{self.dataset.episode_idx} episode(s) saved to {self.dataset.output_dir}"
         )
         self.running = False
 
