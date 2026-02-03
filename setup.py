@@ -47,6 +47,8 @@ setup(
         "scipy",
         "open3d",
         "requests",
+        "pygame",
+        "lmdb",
     ],
     zip_safe=True,
     maintainer="Paul Pacaud",
@@ -56,7 +58,9 @@ setup(
     entry_points={
         "console_scripts": [
             "run_policy = robo_maestro.run_policy:main",
-            "read_eef_pose = robo_maestro.read_eef_pose:main",
+            "read_eef_pose = robo_maestro.dev_tools.read_eef_pose:main",
+            "control_robot_eef = robo_maestro.dev_tools.control_robot_in_EEF_pose:main",
+            "collect_dataset = robo_maestro.collect_dataset:main",
         ],
     },
 )
