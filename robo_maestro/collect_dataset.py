@@ -9,12 +9,7 @@ the dataset session.
 Usage
 -----
 # Required args: task, var, cam_list, start_episode_id.
-ros2 launch robo_maestro collect_dataset.launch.py \\
-    use_sim_time:=false \\
-    task:=put_fruits_in_plate \\
-    var:=0 \\
-    cam_list:=foxtrot_camera \\
-    start_episode_id:=0
+ros2 launch robo_maestro collect_dataset.launch.py use_sim_time:=false task:=put_fruits_in_plates var:=0 cam_list:=echo_camera start_episode_id:=0
 
 # Multiple cameras: pass a comma-separated string (no spaces).
 ros2 launch robo_maestro collect_dataset.launch.py \\
