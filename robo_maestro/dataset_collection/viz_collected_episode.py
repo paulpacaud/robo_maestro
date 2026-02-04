@@ -8,10 +8,10 @@ Inspect and visualize episodes saved by collect_dataset.py.
 
 Usage:
     # Print info for all episodes in a dataset
-    python3 robo_maestro/dataset_collection/viz_collected_episode.py /home/ppacaud/docker_shared/data/put_fruits_in_plates+0
+    python3 robo_maestro/dataset_collection/viz_collected_episode.py /home/ppacaud/docker_shared/data/ur5_put_grapes_and_banana_in_plates
 
     # Visualize episode 0 (navigate keysteps with arrow keys)
-    python3 robo_maestro/dataset_collection/viz_collected_episode.py /home/ppacaud/docker_shared/data/put_fruits_in_plates+0 --viz --episode 0
+    python3 -m robo_maestro.dataset_collection.viz_collected_episode /home/ppacaud/docker_shared/data/ur5_put_grapes_and_banana_in_plates --viz --episode 0
 """
 
 import argparse
@@ -53,7 +53,9 @@ def print_info(episodes: dict[str, list[GembenchKeystep]]):
             ks0 = keysteps[0]
             for field in ("rgb", "xyz", "depth", "action"):
                 arr = getattr(ks0, field)
-                print(f"  {field:>8s}: shape=({len(keysteps)}, {', '.join(str(s) for s in arr.shape)})  dtype={arr.dtype}")
+                print(
+                    f"  {field:>8s}: shape=({len(keysteps)}, {', '.join(str(s) for s in arr.shape)})  dtype={arr.dtype}"
+                )
 
         print(f"  keysteps: {len(keysteps)}")
 

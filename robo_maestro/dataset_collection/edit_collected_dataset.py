@@ -10,17 +10,17 @@ Usage examples:
 
     # Remove the penultimate keystep (index -2) of episode 0
     python3 robo_maestro/dataset_collection/edit_collected_dataset.py \
-        /home/ppacaud/docker_shared/data/put_fruits_in_plates+0 \
+        /home/ppacaud/docker_shared/data/ur5_put_grapes_and_banana_in_plates \
         --episode 0 --keystep -2
 
     # Remove keystep 3 of episode 2
     python3 robo_maestro/dataset_collection/edit_collected_dataset.py \
-        /home/ppacaud/docker_shared/data/put_fruits_in_plates+0 \
+        /home/ppacaud/docker_shared/data/ur5_put_grapes_and_banana_in_plates \
         --episode 2 --keystep 3
 
     # Dry-run (show what would happen without writing)
     python3 robo_maestro/dataset_collection/edit_collected_dataset.py \
-        /home/ppacaud/docker_shared/data/put_fruits_in_plates+0 \
+        /home/ppacaud/docker_shared/data/ur5_put_grapes_and_banana_in_plates \
         --episode 0 --keystep -2 --dry-run
 """
 
@@ -73,10 +73,18 @@ def print_episode_summary(episode_key: str, keysteps: list[GembenchKeystep]):
         return
 
     ks0 = keysteps[0]
-    print(f"  rgb:    shape=({len(keysteps)}, {', '.join(str(s) for s in ks0.rgb.shape)})  dtype={ks0.rgb.dtype}")
-    print(f"  xyz:    shape=({len(keysteps)}, {', '.join(str(s) for s in ks0.xyz.shape)})  dtype={ks0.xyz.dtype}")
-    print(f"  depth:  shape=({len(keysteps)}, {', '.join(str(s) for s in ks0.depth.shape)})  dtype={ks0.depth.dtype}")
-    print(f"  action: shape=({len(keysteps)}, {ks0.action.shape[0]})  dtype={ks0.action.dtype}")
+    print(
+        f"  rgb:    shape=({len(keysteps)}, {', '.join(str(s) for s in ks0.rgb.shape)})  dtype={ks0.rgb.dtype}"
+    )
+    print(
+        f"  xyz:    shape=({len(keysteps)}, {', '.join(str(s) for s in ks0.xyz.shape)})  dtype={ks0.xyz.dtype}"
+    )
+    print(
+        f"  depth:  shape=({len(keysteps)}, {', '.join(str(s) for s in ks0.depth.shape)})  dtype={ks0.depth.dtype}"
+    )
+    print(
+        f"  action: shape=({len(keysteps)}, {ks0.action.shape[0]})  dtype={ks0.action.dtype}"
+    )
     print(f"  keysteps: {len(keysteps)}")
 
     for i, ks in enumerate(keysteps):

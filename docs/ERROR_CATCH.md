@@ -145,3 +145,7 @@ If the robot behaves unexpectedly:
 ### RoboMaestro
 - Policy server connection refused: Check `--ip` and `--port` match the SSH-forwarded CLEPS port.
 - Gripper not responding: Verify IO controller `/left_io_and_status_controller/set_io` is active.
+
+# Data collection
+Pb: No Joystick detected
+Solution: restart the docker once the joystick is connected

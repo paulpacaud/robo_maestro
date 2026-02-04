@@ -1,21 +1,23 @@
 # Push / Pull huggingface
-huggingface-cli upload paulpacaud/put_fruits_in_plates_0 /home/ppacaud/docker_shared/data/put_fruits_in_plates+0 --repo-type dataset
-hf download paulpacaud/put_fruits_in_plates_0 --repo-type dataset --local-dir put_fruits_in_plates_0
+hf upload paulpacaud/ur5_put_grapes_and_banana_in_plates /home/ppacaud/docker_shared/data/ur5_put_grapes_and_banana_in_plates --repo-type dataset
+hf download paulpacaud/ur5_put_grapes_and_banana_in_plates --repo-type dataset --local-dir ur5_put_grapes_and_banana_in_plates
 
-put fruits in plates
+# put fruits in plates
 
 11 keysteps
 1: start
 2: approach the grape
-3: close gripper
+3: down, close gripper
+
 4: lift the grape
 5: approach the yellow plate
-6: open gripper
+6: down, open gripper
+
 7: approach banana
-8: close gripper
+8: down, close gripper
 9: lift banana
 10: approach the pink plate
-11: open gripper
+11: down, open gripper
 
 
 

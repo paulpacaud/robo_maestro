@@ -52,6 +52,14 @@ ros2 launch robo_maestro read_eef_pose.launch.py use_sim_time:=false
 
 # Control End-Effector Pose without cameras or policy
 ros2 launch robo_maestro control_robot_eef.launch.py use_sim_time:=false
+
+# Collect a keystep-based dataset
+ros2 launch robo_maestro collect_dataset.launch.py \
+    use_sim_time:=false \
+    task:=put_fruits_in_plates\
+    var:=0 \
+    cam_list:=echo_camera \
+    start_episode_id:=0
 ```
 
 ---
