@@ -1,6 +1,6 @@
 """
 defines the package metadata
-defines executable scripts, i.e. available ROS2 nodes
+defines executable offline_scripts, i.e. available ROS2 nodes
 tells colcon how to install the package and where
 list other python packages required by this package (akin to requirements.txt but versions of dependencies have flexible ranges like >=1.0.0,<2.0.0)
 """
@@ -49,6 +49,7 @@ setup(
         "requests",
         "pygame",
         "lmdb",
+        "pydantic>=2.0",
     ],
     zip_safe=True,
     maintainer="Paul Pacaud",
@@ -60,7 +61,7 @@ setup(
             "run_policy = robo_maestro.run_policy:main",
             "read_eef_pose = robo_maestro.dev_tools.read_eef_pose:main",
             "control_robot_eef = robo_maestro.dev_tools.control_robot_in_EEF_pose:main",
-            "collect_dataset = robo_maestro.collect_dataset:main",
+            "collect_dataset = robo_maestro.dataset_collection.collect_dataset:main",
         ],
     },
 )

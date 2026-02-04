@@ -13,6 +13,7 @@ import json
 import os
 import robo_maestro.envs
 from ament_index_python.packages import get_package_share_directory
+from robo_maestro.schemas import ObsStateDict
 from robo_maestro.utils.helpers import *
 from robo_maestro.utils.constants import *
 from robo_maestro.utils.logger import (
@@ -125,7 +126,7 @@ class TaskEvaluator:
 
         self.policy_server = PolicyServer(server_addr)
 
-    def execute_step(self, step_id, keystep_real, cache):
+    def execute_step(self, step_id: int, keystep_real: ObsStateDict, cache):
         if not rclpy.ok():
             return None
 
@@ -139,7 +140,7 @@ class TaskEvaluator:
             "task_str": self.task,
             "variation": self.variation,
             "step_id": step_id,
-            "obs_state_dict": keystep_real,
+            "obs_state_dict": keystep_real.model_dump(),
             "episode_id": self.episode_id,
             "instructions": self.instructions,
             "cache": cache,
@@ -157,11 +158,12 @@ class TaskEvaluator:
         # action, cache = self.policy_server.predict(batch)
         action, cache = self.policy_server.mock_predict(batch, step_id)
 
-        keystep_real["action"] = action
-
+        # Save keystep with the predicted action
+        keystep_with_action = keystep_real.model_dump()
+        keystep_with_action["action"] = action
         save_steps_dir = os.path.join(self.save_path, "keysteps")
         os.makedirs(save_steps_dir, exist_ok=True)
-        np.save(os.path.join(save_steps_dir, f"{step_id}.npy"), keystep_real)
+        np.save(os.path.join(save_steps_dir, f"{step_id}.npy"), keystep_with_action)
 
         if not rclpy.ok():
             return None
@@ -240,7 +242,7 @@ class RunPolicyNode(Node):
     def run(self):
         obs, info = self.env.reset()
 
-        keystep_real = process_keystep(
+        keystep_real: ObsStateDict = process_keystep(
             obs,
             links_bbox=self.links_bbox,
             cam_list=self.args.cam_list,
@@ -254,14 +256,11 @@ class RunPolicyNode(Node):
 
             rclpy.spin_once(self, timeout_sec=0.0)
 
-            keystep_real, cache = self.evaluator.execute_step(
-                step_id, keystep_real, cache
-            )
-            if keystep_real is None or cache is None:
-                log_error(
-                    "Environment step failed, keystep_real is None or cache is None, exiting."
-                )
+            result = self.evaluator.execute_step(step_id, keystep_real, cache)
+            if result is None:
+                log_error("Environment step failed, exiting.")
                 break
+            keystep_real, cache = result
 
         log_success(f"Last step completed, max steps reached")
 

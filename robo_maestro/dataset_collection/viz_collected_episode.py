@@ -8,10 +8,10 @@ Inspect and visualize episodes saved by collect_dataset.py.
 
 Usage:
     # Print info for all episodes in a dataset
-    python3 scripts/check_collected_episode.py /home/ppacaud/docker_shared/data/put_fruits_in_plates+0
+    python3 robo_maestro/dataset_collection/viz_collected_episode.py /home/ppacaud/docker_shared/data/put_fruits_in_plates+0
 
     # Visualize episode 0 (navigate keysteps with arrow keys)
-    python3 scripts/check_collected_episode.py /home/ppacaud/docker_shared/data/put_fruits_in_plates+0 --viz --episode 0
+    python3 robo_maestro/dataset_collection/viz_collected_episode.py /home/ppacaud/docker_shared/data/put_fruits_in_plates+0 --viz --episode 0
 """
 
 import argparse
@@ -22,68 +22,55 @@ import msgpack
 import msgpack_numpy
 import numpy as np
 
+from robo_maestro.schemas import GembenchKeystep, unpack_keysteps
+
 msgpack_numpy.patch()
 
 
-def load_episodes(db_path: str) -> dict[str, dict]:
+def load_episodes(db_path: str) -> dict[str, list[GembenchKeystep]]:
     """Load all episodes from an LMDB dataset."""
     env = lmdb.open(str(db_path), readonly=True, lock=False)
-    episodes = {}
+    episodes: dict[str, list[GembenchKeystep]] = {}
     with env.begin() as txn:
         cursor = txn.cursor()
         for key, value in cursor:
             name = key.decode("ascii")
             data = msgpack.unpackb(value, raw=False)
-            episodes[name] = data
+            episodes[name] = unpack_keysteps(data)
     env.close()
     return episodes
 
 
-def print_info(episodes: dict[str, dict]):
+def print_info(episodes: dict[str, list[GembenchKeystep]]):
     """Print summary info for every episode."""
     print(f"Dataset contains {len(episodes)} episode(s)\n")
 
     for name in sorted(episodes.keys()):
-        ep = episodes[name]
+        keysteps = episodes[name]
         print(f"=== {name} ===")
-        print(f"  Keys: {list(ep.keys())}")
 
-        for key in ("rgb", "xyz", "depth", "action"):
-            arr = ep.get(key)
-            if arr is not None:
-                arr = np.asarray(arr)
-                print(f"  {key:>8s}: shape={arr.shape}  dtype={arr.dtype}")
+        if keysteps:
+            ks0 = keysteps[0]
+            for field in ("rgb", "xyz", "depth", "action"):
+                arr = getattr(ks0, field)
+                print(f"  {field:>8s}: shape=({len(keysteps)}, {', '.join(str(s) for s in arr.shape)})  dtype={arr.dtype}")
 
-        n_keysteps = len(ep["action"]) if "action" in ep else "?"
-        print(f"  keysteps: {n_keysteps}")
+        print(f"  keysteps: {len(keysteps)}")
 
-        # Actions per keystep
-        if "action" in ep:
-            actions = np.asarray(ep["action"])
-            for i in range(len(actions)):
-                pos = actions[i, :3]
-                quat = actions[i, 3:7]
-                grip = actions[i, 7] if actions.shape[1] > 7 else "N/A"
-                print(
-                    f"    keystep {i}: pos=[{pos[0]:+.4f}, {pos[1]:+.4f}, {pos[2]:+.4f}]  "
-                    f"quat=[{quat[0]:+.4f}, {quat[1]:+.4f}, {quat[2]:+.4f}, {quat[3]:+.4f}]  "
-                    f"gripper={grip}"
-                )
-
-        # Bbox info
-        if "bbox_info" in ep:
-            for i, bbox in enumerate(ep["bbox_info"]):
-                print(f"    keystep {i} bbox_info: {bbox}")
-
-        # Pose info
-        if "pose_info" in ep:
-            for i, pose in enumerate(ep["pose_info"]):
-                print(f"    keystep {i} pose_info: {pose}")
+        for i, ks in enumerate(keysteps):
+            pos = ks.action[:3]
+            quat = ks.action[3:7]
+            grip = ks.action[7] if len(ks.action) > 7 else "N/A"
+            print(
+                f"    keystep {i}: pos=[{pos[0]:+.4f}, {pos[1]:+.4f}, {pos[2]:+.4f}]  "
+                f"quat=[{quat[0]:+.4f}, {quat[1]:+.4f}, {quat[2]:+.4f}, {quat[3]:+.4f}]  "
+                f"gripper={grip}"
+            )
 
         print()
 
 
-def visualize_episode(ep_name: str, ep: dict):
+def visualize_episode(ep_name: str, keysteps: list[GembenchKeystep]):
     """Interactive point cloud viewer – use left/right arrow keys to navigate keysteps."""
     try:
         import open3d as o3d
@@ -91,10 +78,7 @@ def visualize_episode(ep_name: str, ep: dict):
         print("open3d is not installed. Install with: pip install open3d")
         sys.exit(1)
 
-    xyz_all = np.asarray(ep["xyz"])
-    rgb_all = np.asarray(ep["rgb"])
-    actions = np.asarray(ep["action"])
-    n_keysteps = len(xyz_all)
+    n_keysteps = len(keysteps)
 
     if n_keysteps == 0:
         print(f"{ep_name} has no keysteps")
@@ -103,8 +87,9 @@ def visualize_episode(ep_name: str, ep: dict):
     state = {"idx": 0, "geometries": []}
 
     def _make_geometries(idx):
-        points = xyz_all[idx].reshape(-1, 3)
-        colors = rgb_all[idx].reshape(-1, 3)
+        ks = keysteps[idx]
+        points = ks.xyz.reshape(-1, 3)
+        colors = ks.rgb.reshape(-1, 3)
         valid = np.isfinite(points).all(axis=1) & (np.abs(points).sum(axis=1) > 1e-6)
         points = points[valid]
         colors = colors[valid]
@@ -113,7 +98,7 @@ def visualize_episode(ep_name: str, ep: dict):
         pcd.points = o3d.utility.Vector3dVector(points.astype(np.float64))
         pcd.colors = o3d.utility.Vector3dVector(colors.astype(np.float64) / 255.0)
 
-        pos = actions[idx][:3]
+        pos = ks.action[:3]
         eef_sphere = o3d.geometry.TriangleMesh.create_sphere(radius=0.01)
         eef_sphere.translate(pos.astype(np.float64))
         eef_sphere.paint_uniform_color([1.0, 0.0, 0.0])
@@ -123,9 +108,9 @@ def visualize_episode(ep_name: str, ep: dict):
         return [pcd, eef_sphere, frame]
 
     def _print_keystep_info(idx):
-        action = actions[idx]
-        pos = action[:3]
-        grip = action[7] if len(action) > 7 else "N/A"
+        ks = keysteps[idx]
+        pos = ks.action[:3]
+        grip = ks.action[7] if len(ks.action) > 7 else "N/A"
         print(
             f"  {ep_name} | keystep {idx}/{n_keysteps - 1} | "
             f"pos=[{pos[0]:+.4f}, {pos[1]:+.4f}, {pos[2]:+.4f}] | "

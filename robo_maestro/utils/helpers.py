@@ -6,6 +6,7 @@ from torchvision.transforms import InterpolationMode
 from torchvision.transforms import Resize
 from scipy.spatial.transform import Rotation
 
+from robo_maestro.schemas import ObsStateDict
 from robo_maestro.utils.logger import log_info
 
 
@@ -55,9 +56,7 @@ def resize(im, new_size, im_type="rgb"):
     return new_im, ratio
 
 
-def process_keystep(
-    obs, links_bbox, cam_list=["echo_camera"]
-):  # ["echo_camera","foxtrot_camera","golf_camera"]
+def process_keystep(obs, links_bbox, cam_list=["echo_camera"]) -> ObsStateDict:
     log_info("Processing keystep")
     rgb = []
     pc = []
@@ -95,10 +94,9 @@ def process_keystep(
         pose_info[f"{link_name}_pose"] = link_pose
         bbox_info[f"{link_name}_bbox"] = links_bbox[link_name]
 
-    keystep = {
-        "rgb": rgb.numpy().astype(np.uint8),
-        "pc": pc.float().numpy(),
-        "gripper": gripper_pose,
-        "arm_links_info": (bbox_info, pose_info),
-    }
-    return keystep
+    return ObsStateDict(
+        rgb=rgb.numpy().astype(np.uint8),
+        pc=pc.float().numpy(),
+        gripper=gripper_pose,
+        arm_links_info=(bbox_info, pose_info),
+    )

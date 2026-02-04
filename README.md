@@ -27,10 +27,11 @@ To add a launch, update setup.py, add the launch to the ./launch folder, then ru
 # Usage
 ## Launch the Robot (Real or Sim)
 ```bash
-# Simulation:
-ros2 launch prl_ur5_run sim.launch.py activate_cameras:=true
 # Real hardware:
 ros2 launch prl_ur5_run real.launch.py activate_cameras:=true use_sim_time:=false
+
+# Simulation:
+ros2 launch prl_ur5_run sim.launch.py activate_cameras:=true
 ```
 
 ## Run RoboMaestro with Policy

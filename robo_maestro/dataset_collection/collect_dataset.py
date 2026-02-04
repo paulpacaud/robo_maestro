@@ -2,14 +2,22 @@
 """
 ROS 2 node -- Joystick teleop + keystep data collection.
 
-Teleoperate the robot with a DualSense PS5 controller (via pygame),
-record keysteps at desired poses, save episodes to LMDB, and manage
-the dataset session.
+Teleoperate the robot with a DualSense PS5 controller (via pygame), record keysteps at desired poses,
+save episodes to LMDB, and manage the dataset session.
+
+The task instruction is loaded automatically from robo_maestro/utils/taskvars_instructions.json using the key "{task}+{var}".
+
+A meta.json file is saved in the output directory (<data_dir>/<task>+<var>/) with task info, camera intrinsics and extrinsics.
 
 Usage
 -----
 # Required args: task, var, cam_list, start_episode_id.
-ros2 launch robo_maestro collect_dataset.launch.py use_sim_time:=false task:=put_fruits_in_plates var:=0 cam_list:=echo_camera start_episode_id:=0
+ros2 launch robo_maestro collect_dataset.launch.py \
+    use_sim_time:=false \
+    task:=put_fruits_in_plates\
+    var:=0 \
+    cam_list:=echo_camera \
+    start_episode_id:=0
 
 # Multiple cameras: pass a comma-separated string (no spaces).
 ros2 launch robo_maestro collect_dataset.launch.py \\
@@ -38,13 +46,9 @@ ros2 launch robo_maestro collect_dataset.launch.py \\
     rot_step:=5.0 \\
     crop_size:=256 \\
     debug:=true
+"""
 
-The task instruction is loaded automatically from
-robo_maestro/utils/taskvars_instructions.json using the key "{task}+{var}".
-
-A meta.json file is saved in the output directory (<data_dir>/<task>+<var>/)
-with task info, camera intrinsics and extrinsics.
-
+"""
 DualSense PS5 Controller Mapping
 ---------------------------------
 
@@ -82,49 +86,6 @@ Data collection (one-shot)
   Options      Finish session and exit
   Square
 
-Controller sketch
------------------
-
-    +--------------------------------------+
-    |  +------+                  +------+  |
-    |  |  L1  |  Roll -          |  R1  |  Roll +
-    |  +------+                  +------+  |
-    |  +------+                  +------+  |
-    |  |  L2  |  Pitch -         |  R2  |  Pitch +
-    |  +------+                  +------+  |
-    |                                      |
-    |    +---+                             |
-    |    | ^ | D-up   = Home               |
-    |  +-|   |-+    [Share] [Opts]         |
-    |  |< | >|     Discard  Finish        |
-    |  +-|   |-+  D-left = Save episode   |
-    |    | v | D-down = Undo keystep       |
-    |    +---+      +-+                    |
-    |             +-|^|-+                  |
-    |             |  Y  | Up/Dn = Z pos    |
-    |  +--------+ |<   >| L/R   = Yaw     |
-    |  |  Left  | +-| |-+                  |
-    |  |  Stick |   +-+  Right Stick       |
-    |  |        |                          |
-    |  | Up/Dn  |    /\\    Triangle        |
-    |  | = Y    |   /  \\   OPEN GRIPPER    |
-    |  |        |  ------                  |
-    |  | L/R    |       O  Circle          |
-    |  | = X    |      CLOSE GRIPPER       |
-    |  |        |       ><  Cross          |
-    |  +--------+      RECORD KEYSTEP      |
-    |                                      |
-    +--------------------------------------+
-
-    LEFT STICK              RIGHT STICK
-    +---------+             +----------+
-    |    ^    |             |    ^     |
-    |  Left   |             |  Up (Z)  |
-    |< Fwd  >|             |<  Yaw  >|
-    |  Right  |             | Down (Z) |
-    |    v    |             |    v     |
-    +---------+             +----------+
-
 DualSense axis mapping (Linux hid_playstation driver)
 
   Axis 0: Left stick X     Axis 1: Left stick Y
@@ -154,6 +115,14 @@ from scipy.spatial.transform import Rotation
 
 import robo_maestro.envs  # noqa: F401 – registers gym envs
 from robo_maestro.core.tf import pos_euler_to_hom
+from robo_maestro.schemas import (
+    CameraConfig,
+    CameraExtrinsics,
+    CameraIntrinsics,
+    CollectedDatasetMeta,
+    GembenchKeystep,
+    pack_keysteps,
+)
 from robo_maestro.utils.constants import (
     DATA_DIR,
     DEFAULT_ROBOT_ACTION,
@@ -182,7 +151,7 @@ class Dataset:
         self.output_dir = output_dir
         Path(output_dir).mkdir(parents=True, exist_ok=True)
         self.lmdb_env = lmdb.open(str(output_dir), map_size=int(1024**4))
-        self.data: list[dict] = []
+        self.data: list[GembenchKeystep] = []
         self.camera_list = camera_list
         self.crop_size = crop_size
         self.links_bbox = links_bbox
@@ -239,7 +208,9 @@ class Dataset:
         rgb = torch.stack(rgb)
         xyz = torch.stack(xyz)
         depth = torch.stack(depth)
-        action = np.concatenate([gripper_pose, np.array([int(gripper_state)])], axis=-1)
+        action = np.concatenate(
+            [gripper_pose, np.array([int(gripper_state)])], axis=-1
+        ).astype(np.float32)
 
         if self.crop_size:
             rgb = rgb.permute(0, 3, 1, 2)
@@ -271,45 +242,23 @@ class Dataset:
             pose_info[f"{link_name}_pose"] = link_pose
             bbox_info[f"{link_name}_bbox"] = self.links_bbox[link_name]
 
-        keystep = {
-            "xyz": xyz,
-            "rgb": rgb,
-            "depth": depth,
-            "action": action,
-            "bbox_info": bbox_info,
-            "pose_info": pose_info,
-        }
+        keystep = GembenchKeystep(
+            rgb=rgb.numpy().astype(np.uint8),
+            xyz=xyz.float().numpy(),
+            depth=depth.float().numpy(),
+            action=action,
+            bbox_info=bbox_info,
+            pose_info=pose_info,
+        )
         self.data.append(keystep)
 
     # -- episode lifecycle --------------------------------------------------
 
     def save(self):
-        xyzs, rgbs, depths = [], [], []
-        actions: list = []
-        bbox_info_list: list = []
-        pose_info_list: list = []
-
-        for ks in self.data:
-            xyzs.append(ks["xyz"])
-            rgbs.append(ks["rgb"])
-            depths.append(ks["depth"])
-            actions.append(ks["action"])
-            bbox_info_list.append(ks["bbox_info"])
-            pose_info_list.append(ks["pose_info"])
-
-        outs = {
-            "xyz": torch.stack(xyzs).float().numpy(),
-            "rgb": torch.stack(rgbs).numpy().astype(np.uint8),
-            "depth": torch.stack(depths).float().numpy(),
-            "bbox_info": bbox_info_list,
-            "pose_info": pose_info_list,
-            "action": np.stack(actions).astype(np.float32),
-        }
-
         txn = self.lmdb_env.begin(write=True)
         txn.put(
             f"episode{self.episode_idx}".encode("ascii"),
-            msgpack.packb(outs),
+            msgpack.packb(pack_keysteps(self.data)),
         )
         txn.commit()
         self.episode_idx += 1
@@ -509,40 +458,40 @@ class CollectDatasetNode(Node):
 
     def _save_meta(self):
         """Write meta.json with task info, camera intrinsics and extrinsics."""
-        cameras = {}
+        cameras: dict[str, CameraConfig] = {}
         for cam_name in self.cam_list:
-            intrinsics = self.env.cam_info[f"intrinsics_{cam_name}"]
+            intrinsics_raw = self.env.cam_info[f"intrinsics_{cam_name}"]
             cam_pose = self.env.robot.cameras[cam_name].get_pose()
             cam_pos, cam_euler = cam_pose
             world_T_cam = pos_euler_to_hom(cam_pos, cam_euler)
 
-            cameras[cam_name] = {
-                "intrinsics": {
-                    "height": int(intrinsics["height"]),
-                    "width": int(intrinsics["width"]),
-                    "fx": float(intrinsics["fx"]),
-                    "fy": float(intrinsics["fy"]),
-                    "ppx": float(intrinsics["ppx"]),
-                    "ppy": float(intrinsics["ppy"]),
-                    "K": intrinsics["K"].tolist(),
-                },
-                "extrinsics": {
-                    "pos": [float(v) for v in cam_pos],
-                    "euler": [float(v) for v in cam_euler],
-                    "world_T_cam": world_T_cam.tolist(),
-                },
-            }
+            cameras[cam_name] = CameraConfig(
+                intrinsics=CameraIntrinsics(
+                    height=int(intrinsics_raw["height"]),
+                    width=int(intrinsics_raw["width"]),
+                    fx=float(intrinsics_raw["fx"]),
+                    fy=float(intrinsics_raw["fy"]),
+                    ppx=float(intrinsics_raw["ppx"]),
+                    ppy=float(intrinsics_raw["ppy"]),
+                    K=intrinsics_raw["K"].tolist(),
+                ),
+                extrinsics=CameraExtrinsics(
+                    pos=[float(v) for v in cam_pos],
+                    euler=[float(v) for v in cam_euler],
+                    world_T_cam=world_T_cam.tolist(),
+                ),
+            )
 
-        meta = {
-            "task": self.task,
-            "task_instruction": self.task_instruction,
-            "cam_list": self.cam_list,
-            "cameras": cameras,
-        }
+        meta = CollectedDatasetMeta(
+            task=self.task,
+            task_instruction=self.task_instruction,
+            cam_list=self.cam_list,
+            cameras=cameras,
+        )
 
         meta_path = Path(self.dataset.output_dir) / "meta.json"
         with open(meta_path, "w") as f:
-            json.dump(meta, f, indent=2)
+            json.dump(meta.model_dump(), f, indent=2)
         log_info(f"Saved metadata to {meta_path}")
 
     # -- main loop ----------------------------------------------------------
