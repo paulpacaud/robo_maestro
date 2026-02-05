@@ -119,22 +119,51 @@ class TFRecorder:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node)
 
     # ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-    def record_tf(self, timeout: float = 4.0, now: bool = False):
+    def record_tf(self, timeout: float = 4.0, now: bool = False,
+                  retries: int = 5, retry_delay: float = 1.0):
         """
-        Return a geometry_msgs/TransformStamped like tf2lookup in ROS 1.
+        Return a geometry_msgs/TransformStamped like tf2lookup in ROS 1.
+
+        Retries on LookupException to handle the startup race condition where
+        the TF tree hasn't been fully populated yet (e.g. the robot base frame
+        hasn't been broadcast). The lookup_transform timeout only waits for
+        *known* frames to receive fresh data; if the frame doesn't exist at all
+        it raises LookupException immediately, so we retry with a delay to give
+        the TF broadcaster time to come up.
+
+        Args:
+            timeout: Seconds to wait per lookup_transform call.
+            now: If True, use the current clock time as the stamp; otherwise
+                use Time() (latest available transform).
+            retries: Number of attempts before giving up on LookupException.
+            retry_delay: Seconds to sleep between retries.
         """
-        try:
-            stamp: Time = self.node.get_clock().now() if now else Time()
-            return self.tf_buffer.lookup_transform(
-                self._source_frame,
-                self._target_frame,
-                stamp,
-                timeout=Duration(seconds=timeout),
-            )
-        except (tf2_ros.TransformException, tf2_ros.LookupException,
-                tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            log_error(f"TF lookup failed: {e}")
-            raise
+        import time as _time
+
+        stamp: Time = self.node.get_clock().now() if now else Time()
+        for attempt in range(retries):
+            try:
+                return self.tf_buffer.lookup_transform(
+                    self._source_frame,
+                    self._target_frame,
+                    stamp,
+                    timeout=Duration(seconds=timeout),
+                )
+            except tf2_ros.LookupException as e:
+                if attempt < retries - 1:
+                    log_error(
+                        f"TF lookup failed (attempt {attempt + 1}/{retries}): {e} "
+                        f"— retrying in {retry_delay}s..."
+                    )
+                    _time.sleep(retry_delay)
+                else:
+                    log_error(f"TF lookup failed after {retries} attempts: {e}")
+                    raise
+            except (tf2_ros.TransformException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException) as e:
+                log_error(f"TF lookup failed: {e}")
+                raise
 
 # ---------------------------------------------------------------------------
 class CameraPose(Camera):

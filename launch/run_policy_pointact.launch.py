@@ -11,6 +11,8 @@ import os
 
 def launch_setup(context):
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
+    mock = LaunchConfiguration('mock').perform(context).lower() == 'true'
+
     # Here we built the moveit_config object
     # This object is used to load the robot description and the planner
     moveit_config = (
@@ -24,13 +26,17 @@ def launch_setup(context):
     )
 
     # Here we launch the executable
+    node_arguments = ["--ros-args", "--log-level", "WARN"]
+    if mock:
+        node_arguments = ["--mock"] + node_arguments
+
     moveit_py_node = Node(
         name="run_policy_pointact",
         package="robo_maestro",
         executable="run_policy_pointact",
         output="both",
         parameters=[moveit_config.to_dict(), {'use_sim_time': use_sim_time}],
-        arguments=["--ros-args", "--log-level", "WARN"],
+        arguments=node_arguments,
     )
 
     return [
@@ -44,6 +50,13 @@ def generate_launch_description():
             "use_sim_time",
             default_value="true",
             description="Use simulation (Gazebo) clock if true",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "mock",
+            default_value="false",
+            description="Use mock policy predictions instead of a real server",
         )
     )
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])

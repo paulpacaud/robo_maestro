@@ -5,6 +5,9 @@ bridge between a remote policy inference server (genrobot3d) and the Paris‑Lab
 3) preprocess the obs to match the input of the remote policy inference server
 4) query the policy over http and get the action + new cache
 5) execute the action on the real robot with env.move()
+
+connect to cleps:
+ssh -N -v -L 17000:gpu017:17000 cleps -i ~/.ssh/jz_rsa
 """
 
 import tap
@@ -30,6 +33,7 @@ import numpy as np
 import msgpack
 import requests
 import msgpack_numpy
+
 msgpack_numpy.patch()
 
 from robo_maestro.utils.server_client import PolicyClient
@@ -44,6 +48,7 @@ class Arguments(tap.Tap):
     ip: str = "127.0.0.1"
     port: int = 17000
     episode_id: int = 0
+    mock: bool = False
 
 
 class TaskEvaluator:
@@ -57,7 +62,8 @@ class TaskEvaluator:
         links_bbox,
         cam_list,
         ip,
-        port
+        port,
+        mock=False,
     ):
         self.env = env
         self.task = task
@@ -66,18 +72,37 @@ class TaskEvaluator:
         self.episode_id = episode_id
         self.links_bbox = links_bbox
         self.cam_list = cam_list
+        self.mock = mock
+        ts = __import__("datetime").datetime.now().strftime("%m%dT%H%M%S")
         self.save_path = os.path.join(
             DATA_DIR,
             "run_policy_experiments",
-            self.task + "+" + self.variation,
+            self.task + "+" + self.variation + "_" + ts,
             f"episode_{self.episode_id}",
         )
 
-        self.policy_client = PolicyClient(ip, port)
-        is_server_running = False
-        while not is_server_running:
-            is_server_running = self.policy_client.ping()
-        print(f'Server is running on host {ip} port {port}')
+        if self.mock:
+            log_info("Running in MOCK mode — no policy server required")
+        else:
+            self.policy_client = PolicyClient(ip, port)
+            is_server_running = False
+            while not is_server_running:
+                is_server_running = self.policy_client.ping()
+            print(f"Server is running on host {ip} port {port}")
+
+    def mock_predict(self, batch, step_id):
+        """
+        Mock prediction function to simulate server response.
+        """
+        log_info(f"Mock prediction called with batch {batch.keys()}")
+
+        if step_id % 2 == 0:
+            action = np.array(MOCK_ROBOT_ACTION_1, dtype=np.float32)
+        else:
+            action = np.array(MOCK_ROBOT_ACTION_2, dtype=np.float32)
+
+        cache = {}
+        return action, cache
 
     def execute_step(self, step_id: int, keystep_real: ObsStateDict, cache):
         if not rclpy.ok():
@@ -99,34 +124,35 @@ class TaskEvaluator:
             "cache": cache,
         }
 
-        options = {
-            "pred_rot_type": "euler",
-        }
-        outputs = self.policy_client.get_action(
-            batch, options
+        if self.mock:
+            action, cache = self.mock_predict(batch, step_id)
+        else:
+            options = {
+                "pred_rot_type": "euler",
+            }
+            outputs = self.policy_client.get_action(batch, options)
+            action = np.array(outputs["action"], dtype=np.float64).flatten()[:8]
+
+        # Save batch to log dir
+        batch_data = msgpack_numpy.packb(batch)
+        batch_dir = os.path.join(self.save_path, "batch")
+        os.makedirs(batch_dir, exist_ok=True)
+        batch_file = os.path.join(batch_dir, f"step-{step_id}.msgpack")
+        with open(batch_file, "wb") as f:
+            f.write(batch_data)
+        log_info(f"Batch: {batch.keys()}")
+        log_info(
+            f"Task: {self.task}, Variation: {self.variation}, Step ID: {step_id}, Episode ID: {self.episode_id}"
         )
-        action = outputs["action"]
+        log_info(f"Instruction: {self.instructions}")
+        log_info(f"Saved batch to {batch_file}")
 
-        # # Save batch to log dir
-        # batch_data = msgpack_numpy.packb(batch)
-        # batch_dir = os.path.join(self.save_path, "batch")
-        # os.makedirs(batch_dir, exist_ok=True)
-        # batch_file = os.path.join(batch_dir, f"step-{step_id}.msgpack")
-        # with open(batch_file, "wb") as f:
-        #     f.write(batch_data)
-        # log_info(f"Batch: {batch.keys()}")
-        # log_info(
-        #     f"Task: {self.task}, Variation: {self.variation}, Step ID: {step_id}, Episode ID: {self.episode_id}"
-        # )
-        # log_info(f"Instruction: {self.instructions}")
-        # log_info(f"Saved batch to {batch_file}")
-
-        # # Save keystep with the predicted action
-        # keystep_with_action = keystep_real.model_dump()
-        # keystep_with_action["action"] = action
-        # save_steps_dir = os.path.join(self.save_path, "keysteps")
-        # os.makedirs(save_steps_dir, exist_ok=True)
-        # np.save(os.path.join(save_steps_dir, f"{step_id}.npy"), keystep_with_action)
+        # Save keystep with the predicted action
+        keystep_with_action = keystep_real.model_dump()
+        keystep_with_action["action"] = action
+        save_steps_dir = os.path.join(self.save_path, "keysteps")
+        os.makedirs(save_steps_dir, exist_ok=True)
+        np.save(os.path.join(save_steps_dir, f"{step_id}.npy"), keystep_with_action)
 
         if not rclpy.ok():
             return None
@@ -206,6 +232,7 @@ class RunPolicyNode(Node):
             self.args.cam_list,
             self.args.ip,
             self.args.port,
+            mock=self.args.mock,
         )
 
     def run(self):

@@ -62,7 +62,7 @@ def process_keystep(obs, links_bbox, cam_list=["echo_camera"]) -> ObsStateDict:
     pc = []
     gripper_pos = obs["gripper_pos"]
     gripper_quat = obs["gripper_quat"]
-    gripper_state = not obs["gripper_state"]
+    gripper_state = obs["gripper_state"]
     gripper_pose = np.concatenate(
         [gripper_pos, gripper_quat, np.expand_dims(gripper_state, 0)]
     )
