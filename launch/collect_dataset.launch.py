@@ -17,7 +17,6 @@ from ament_index_python.packages import get_package_share_directory
 def launch_setup(context):
     use_sim_time = LaunchConfiguration("use_sim_time")
     task = LaunchConfiguration("task")
-    var = LaunchConfiguration("var")
     cam_list = LaunchConfiguration("cam_list")
     start_episode_id = LaunchConfiguration("start_episode_id")
     data_dir = LaunchConfiguration("data_dir")
@@ -46,7 +45,6 @@ def launch_setup(context):
             {
                 "use_sim_time": use_sim_time,
                 "task": task,
-                "var": var,
                 "cam_list": cam_list,
                 "start_episode_id": start_episode_id,
                 "data_dir": data_dir,
@@ -71,10 +69,6 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "task",
             description="Task name for the dataset (required)",
-        ),
-        DeclareLaunchArgument(
-            "var",
-            description="Task variant index (required)",
         ),
         DeclareLaunchArgument(
             "cam_list",

@@ -11,11 +11,10 @@ A meta.json file is saved in the output directory (<data_dir>/<task>+<var>/) wit
 
 Usage
 -----
-# Required args: task, var, cam_list, start_episode_id.
+# Required args: task, cam_list, start_episode_id.
 ros2 launch robo_maestro collect_dataset.launch.py \
     use_sim_time:=false \
-    task:=put_fruits_in_plates\
-    var:=0 \
+    task:=ur5_stack_yellow_onto_pink_cup\
     cam_list:=echo_camera \
     start_episode_id:=0
 
@@ -23,7 +22,6 @@ ros2 launch robo_maestro collect_dataset.launch.py \
 ros2 launch robo_maestro collect_dataset.launch.py \\
     use_sim_time:=false \\
     task:=put_fruits_in_plate \\
-    var:=0 \\
     cam_list:=foxtrot_camera,echo_camera,golf_camera \\
     start_episode_id:=0
 
@@ -31,7 +29,6 @@ ros2 launch robo_maestro collect_dataset.launch.py \\
 ros2 launch robo_maestro collect_dataset.launch.py \\
     use_sim_time:=false \\
     task:=put_fruits_in_plate \\
-    var:=0 \\
     cam_list:=foxtrot_camera \\
     start_episode_id:=5
 
@@ -39,7 +36,6 @@ ros2 launch robo_maestro collect_dataset.launch.py \\
 ros2 launch robo_maestro collect_dataset.launch.py \\
     use_sim_time:=false \\
     task:=put_fruits_in_plate \\
-    var:=0 \\
     cam_list:=foxtrot_camera \\
     start_episode_id:=0 \\
     pos_step:=0.02 \\
@@ -123,11 +119,7 @@ from robo_maestro.schemas import (
     GembenchKeystep,
     pack_keysteps,
 )
-from robo_maestro.utils.constants import (
-    DATA_DIR,
-    DEFAULT_ROBOT_ACTION,
-    TASKVARS_INSTRUCTIONS_PATH,
-)
+from robo_maestro.utils.constants import DATA_DIR, DEFAULT_ROBOT_ACTION
 from robo_maestro.utils.helpers import crop_center, resize
 from robo_maestro.utils.logger import log_error, log_info, log_success, log_warn
 
@@ -368,19 +360,25 @@ class CollectDatasetNode(Node):
                 )
 
         self.task = _require_str("task")
-        self.var = _require_int("var")
         cam_str = _require_str("cam_list")
         self.cam_list = [c.strip() for c in cam_str.split(",")]
         self.start_episode_id = _require_int("start_episode_id")
 
         # Load task instruction from JSON
-        taskvar = f"{self.task}+{self.var}"
-        with open(TASKVARS_INSTRUCTIONS_PATH) as f:
+        import importlib.resources as pkg_resources
+
+        taskvar = f"{self.task}"
+        _instr_path = Path(
+            pkg_resources.files("robo_maestro")
+            / "assets"
+            / "taskvars_instructions.json"
+        )
+        with open(_instr_path) as f:
             taskvars_instructions = json.load(f)
         if taskvar not in taskvars_instructions:
             log_error(
                 f"Task variant '{taskvar}' not found in "
-                f"{TASKVARS_INSTRUCTIONS_PATH}. "
+                f"{"robo_maestro/assets/taskvars_instructions.json"}. "
                 f"Available: {list(taskvars_instructions.keys())}"
             )
             raise RuntimeError(f"Unknown task variant: '{taskvar}'")
@@ -401,10 +399,17 @@ class CollectDatasetNode(Node):
         # the measured pose (which may lag behind during motion).
         self._cmd_pos = None  # initialized on first teleop call
         self._cmd_quat = None
+        # Speed regime: fast (3x) by default, toggle with Square button
+        self._fast_mode = True
+        self._active_pos_step = self.pos_step * 5.0
+        self._active_rot_step = self.rot_step * 5.0
 
         log_info(
-            f"Config: task={self.task} var={self.var} cam_list={self.cam_list} "
+            f"Config: task={self.task} cam_list={self.cam_list} "
             f"pos_step={self.pos_step} rot_step={self.rot_step} debug={self.debug}"
+        )
+        log_info(
+            f"Speed regime: FAST (pos_step={self._active_pos_step}, rot_step={self._active_rot_step})"
         )
 
     # -- setup --------------------------------------------------------------
@@ -431,7 +436,7 @@ class CollectDatasetNode(Node):
         with open(bbox_path, "rb") as f:
             self.links_bbox = pkl.load(f)
 
-        output_dir = Path(self.data_dir) / f"{self.task}+{self.var}"
+        output_dir = Path(self.data_dir) / f"{self.task}"
         self.dataset = Dataset(
             str(output_dir),
             camera_list=self.cam_list,
@@ -545,6 +550,20 @@ class CollectDatasetNode(Node):
             self.gripper_state = 0
             log_info("Gripper → OPEN")
             self.env.robot.open_gripper()
+        elif button == 3:  # Square – toggle speed regime
+            self._fast_mode = not self._fast_mode
+            if self._fast_mode:
+                self._active_pos_step = self.pos_step * 3.0
+                self._active_rot_step = self.rot_step * 3.0
+                log_info(
+                    f"Speed regime: FAST (pos_step={self._active_pos_step}, rot_step={self._active_rot_step})"
+                )
+            else:
+                self._active_pos_step = self.pos_step
+                self._active_rot_step = self.rot_step
+                log_info(
+                    f"Speed regime: SLOW (pos_step={self._active_pos_step}, rot_step={self._active_rot_step})"
+                )
         elif button == 8:  # Share – discard episode
             self._discard_episode()
         elif button == 9:  # Options – finish session
@@ -579,18 +598,20 @@ class CollectDatasetNode(Node):
         rot_dy = 0.0
         rot_dz = 0.0
 
+        rot_step = self._active_rot_step
+
         if self._rot_buttons_held[4]:  # L1 → X-rot negative
-            rot_dx = -self.rot_step
+            rot_dx = -rot_step
         if self._rot_buttons_held[5]:  # R1 → X-rot positive
-            rot_dx = self.rot_step
+            rot_dx = rot_step
         if self._rot_buttons_held[6]:  # L2 → Y-rot negative
-            rot_dy = -self.rot_step
+            rot_dy = -rot_step
         if self._rot_buttons_held[7]:  # R2 → Y-rot positive
-            rot_dy = self.rot_step
+            rot_dy = rot_step
 
         # Z-rotation from right stick X
         if abs(ax_rx) > 0:
-            rot_dz = -ax_rx * self.rot_step
+            rot_dz = -ax_rx * rot_step
 
         has_motion = (
             ax_lx != 0
@@ -621,9 +642,10 @@ class CollectDatasetNode(Node):
 
         # Position delta
         new_pos = self._cmd_pos.copy()
-        new_pos[0] += -ax_lx * self.pos_step  # left stick X → X (left=fwd, right=back)
-        new_pos[1] += ax_ly * self.pos_step  # left stick Y → Y (up=left, down=right)
-        new_pos[2] += -ax_ry * self.pos_step  # right stick Y → Z (up/down)
+        pos_step = self._active_pos_step
+        new_pos[0] += -ax_lx * pos_step  # left stick X → X (left=fwd, right=back)
+        new_pos[1] += ax_ly * pos_step  # left stick Y → Y (up=left, down=right)
+        new_pos[2] += -ax_ry * pos_step  # right stick Y → Z (up/down)
 
         # Orientation delta (local-frame rotation)
         R_current = Rotation.from_quat(self._cmd_quat)
@@ -655,10 +677,10 @@ class CollectDatasetNode(Node):
 
     @property
     def _tag(self):
-        """Log prefix: [task+var] [ep N] [ks M]"""
+        """Log prefix: [task] [ep N] [ks M]"""
         ep = self.dataset.episode_idx
         ks = len(self.dataset.data)
-        return f"[{self.task}+{self.var}] [ep {ep}] [ks {ks}]"
+        return f"[{self.task}] [ep {ep}] [ks {ks}]"
 
     def _record_keystep(self):
         log_info(f"{self._tag} Recording keystep ...")
@@ -715,7 +737,7 @@ class CollectDatasetNode(Node):
         log_info(f"{self._tag} Finishing session ...")
         self.dataset.done()
         log_success(
-            f"[{self.task}+{self.var}] Session finished. "
+            f"[{self.task}] Session finished. "
             f"{self.dataset.episode_idx} episode(s) saved to {self.dataset.output_dir}"
         )
         self.running = False

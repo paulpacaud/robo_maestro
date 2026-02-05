@@ -1,5 +1,11 @@
 {
   "ur5_put_grapes_and_banana_in_plates":[
     "put the grapes in the yellow plate, then put the banana in the pink plate"
+  ],
+  "ur5_stack_yellow_onto_pink_cup":[
+    "stack the yellow cup on top of the pink cup"
+  ],
+  "ur5_close_drawer":[
+    "close the drawer"
   ]
 }

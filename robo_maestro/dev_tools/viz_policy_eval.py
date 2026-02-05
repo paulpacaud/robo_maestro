@@ -7,11 +7,11 @@ with keys: rgb, pc, gripper, arm_links_info, action.
 
 Usage:
     # Print info
-    python3 -m robo_maestro.dataset_collection.viz_policy_eval \
+    python3 -m robo_maestro.dev_tools.viz_policy_eval \
         ~/docker_shared/data/run_policy_experiments/ur5_put_grapes_and_banana_in_plates+0_0205T125947/episode_0
 
     # Visualize with Open3D point cloud viewer (arrow keys to navigate)
-    python3 -m robo_maestro.dataset_collection.viz_policy_eval \
+    python3 -m robo_maestro.dev_tools.viz_policy_eval \
         ~/docker_shared/data/run_policy_experiments/ur5_put_grapes_and_banana_in_plates+0_0205T133830/episode_0 \
         --viz
 """
@@ -123,9 +123,9 @@ def visualize_episode(keysteps: list[dict], episode_dir: str):
         act_pos = action[:3]
         act_grip = action[7] if len(action) > 7 else "N/A"
         print(
-            f"  keystep {idx}/{n_keysteps - 1} | "
-            f"eef=[{eef_pos[0]:+.4f}, {eef_pos[1]:+.4f}, {eef_pos[2]:+.4f}] | "
-            f"action=[{act_pos[0]:+.4f}, {act_pos[1]:+.4f}, {act_pos[2]:+.4f}] gripper={act_grip}"
+            f"  keystep {idx}/{n_keysteps - 1} | \n"
+            f"eef={gripper} | \n"
+            f"action={action}"
         )
 
     def _switch_keystep(vis, new_idx):

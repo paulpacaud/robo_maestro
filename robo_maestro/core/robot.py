@@ -68,14 +68,14 @@ class Robot:
         self.plan_params = PlanRequestParameters(self.ur, "left_arm")
         self.plan_params.planning_pipeline = "ompl"
         self.plan_params.planner_id = "RRTConnect"  # TODO: to change - not the best choice as it is very good for cluttered envs, but not for open spaces
-        self.plan_params.max_velocity_scaling_factor = 0.25
+        self.plan_params.max_velocity_scaling_factor = 0.5
         self.plan_params.max_acceleration_scaling_factor = 0.25
 
         # cartesian_only plan params
         self.lin_plan_params = PlanRequestParameters(self.ur, "left_arm")
         self.lin_plan_params.planning_pipeline = "pilz_industrial_motion_planner"
         self.lin_plan_params.planner_id = "LIN"
-        self.lin_plan_params.max_velocity_scaling_factor = 0.15
+        self.lin_plan_params.max_velocity_scaling_factor = 0.5
         self.lin_plan_params.max_acceleration_scaling_factor = 0.15
 
         self.gripper_state = 0
@@ -212,6 +212,8 @@ class Robot:
         log_info(f"Executing plan for {group_name}")
         success = robot.execute(robot_trajectory, controllers=[])
 
+        log_info("Sleeping to ensure execution is complete...")
+        # MoveItPy.execute() is non-blocking — it dispatches the trajectory to the controller and returns immediately. It does NOT wait for the robot to finish moving. So time.sleep(sleep_time) is the only thing giving the robot time to complete the motion
         time.sleep(sleep_time)
 
         if not success:
@@ -291,7 +293,7 @@ class Robot:
             )
         return new_position
 
-    def go_to_pose(self, action, cartesian_only=False, sleep_time=3.0):
+    def go_to_pose(self, action, cartesian_only=False, sleep_time=5):
         """
         For the arm, we will first try cartesian planning, and fall back to vanilla RTT motion planner if it fails.
         For the gripper, we will just execute the open/close command (skipped if already in target state).

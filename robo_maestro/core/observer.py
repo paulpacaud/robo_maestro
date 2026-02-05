@@ -116,7 +116,7 @@ class TFRecorder:
 
         # Buffer caches 10 s to ride out small TF gaps
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=10.0))
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, node, spin_thread=True)
 
     # ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
     def record_tf(self, timeout: float = 4.0, now: bool = False,

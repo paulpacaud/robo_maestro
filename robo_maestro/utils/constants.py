@@ -4,7 +4,6 @@ import numpy as np
 
 # PATHS
 DATA_DIR = "/home/ros/share/data"
-TASKVARS_INSTRUCTIONS_PATH = Path(__file__).parent / "taskvars_instructions.json"
 
 # WORKSPACE PARAMETERS
 # The first sub-array [-0.50, -0.54, 0.01] is the minimum allowed position: x, y, z.
