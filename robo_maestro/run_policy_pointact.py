@@ -30,8 +30,9 @@ import numpy as np
 import msgpack
 import requests
 import msgpack_numpy
-
 msgpack_numpy.patch()
+
+from robo_maestro.utils.server_client import PolicyClient
 
 
 class Arguments(tap.Tap):
@@ -44,71 +45,6 @@ class Arguments(tap.Tap):
     port: int = 17000
     episode_id: int = 0
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._server_addr = None
-
-    @property
-    def server_addr(self):
-        if self._server_addr is None:
-            self._server_addr = f"http://{self.ip}:{self.port}"
-        return self._server_addr
-
-
-class PolicyServer:
-    def __init__(self, server_addr):
-        self.server_addr = server_addr
-
-    def predict(self, batch):
-        log_info(
-            f"Policy server at {self.server_addr}/get_action called with batch {batch.keys()}"
-        )
-
-        data = msgpack_numpy.packb(batch)
-        options = {
-            "pred_rot_type": "euler",
-        }
-        log_info(f"Sending POST to {self.server_addr}/get_action ...")
-        log_info(f"Packed batch size: {len(data)} bytes")
-        response = requests.post(
-            f"{self.server_addr}/get_action",
-            data={"batch": data, "options": options},
-        )
-        log_info(f"Response status: {response.status_code}")
-        log_info(f"Response content length: {len(response.content)} bytes")
-        log_debug(f"Response headers: {dict(response.headers)}")
-        output = msgpack_numpy.unpackb(response._content)
-        log_info(f"Unpacked output keys: {list(output.keys())}")
-        action = output["action"]
-        cache = output.get("cache", None)
-
-        log_info(f"Received action of shape {action.shape} and cache from server")
-
-        # self._display_cache(action, cache)
-        return action, cache
-
-    def mock_predict(self, batch, step_id):
-        """
-        Mock prediction function to simulate server response.
-        """
-        log_info(f"Mock prediction called with batch {batch.keys()}")
-
-        # randomly pick MOCK_ROBOT_ACTION_1 or MOCK_ROBOT_ACTION_2
-        if step_id % 2 == 0:
-            action = np.array(MOCK_ROBOT_ACTION_1, dtype=np.float32)
-        else:
-            action = np.array(MOCK_ROBOT_ACTION_2, dtype=np.float32)
-
-        cache = {}
-
-        self._display_cache(action, cache)
-        return action, cache
-
-    def _display_cache(self, action, cache):
-        log_info(f"cache['last_plan']: {cache.get('last_plan', 'N/A')}")
-        log_info(f"highlevel_step_id: {cache.get('highlevel_stepid', 'N/A')}")
-        log_info(f"highlevel_plans: {cache.get('highlevel_plans', 'N/A')}")
-
 
 class TaskEvaluator:
     def __init__(
@@ -120,7 +56,8 @@ class TaskEvaluator:
         episode_id,
         links_bbox,
         cam_list,
-        server_addr,
+        ip,
+        port
     ):
         self.env = env
         self.task = task
@@ -136,7 +73,11 @@ class TaskEvaluator:
             f"episode_{self.episode_id}",
         )
 
-        self.policy_server = PolicyServer(server_addr)
+        self.policy_client = PolicyClient(ip, port)
+        is_server_running = False
+        while not is_server_running:
+            is_server_running = self.policy_client.ping()
+        print(f'Server is running on host {ip} port {port}')
 
     def execute_step(self, step_id: int, keystep_real: ObsStateDict, cache):
         if not rclpy.ok():
@@ -158,29 +99,34 @@ class TaskEvaluator:
             "cache": cache,
         }
 
-        # Save batch to log dir
-        batch_data = msgpack_numpy.packb(batch)
-        batch_dir = os.path.join(self.save_path, "batch")
-        os.makedirs(batch_dir, exist_ok=True)
-        batch_file = os.path.join(batch_dir, f"step-{step_id}.msgpack")
-        with open(batch_file, "wb") as f:
-            f.write(batch_data)
-        log_info(f"Batch: {batch.keys()}")
-        log_info(
-            f"Task: {self.task}, Variation: {self.variation}, Step ID: {step_id}, Episode ID: {self.episode_id}"
+        options = {
+            "pred_rot_type": "euler",
+        }
+        outputs = self.policy_client.get_action(
+            batch, options
         )
-        log_info(f"Instruction: {self.instructions}")
-        log_info(f"Saved batch to {batch_file}")
+        action = outputs["action"]
 
-        action, cache = self.policy_server.predict(batch)
-        # action, cache = self.policy_server.mock_predict(batch, step_id)
+        # # Save batch to log dir
+        # batch_data = msgpack_numpy.packb(batch)
+        # batch_dir = os.path.join(self.save_path, "batch")
+        # os.makedirs(batch_dir, exist_ok=True)
+        # batch_file = os.path.join(batch_dir, f"step-{step_id}.msgpack")
+        # with open(batch_file, "wb") as f:
+        #     f.write(batch_data)
+        # log_info(f"Batch: {batch.keys()}")
+        # log_info(
+        #     f"Task: {self.task}, Variation: {self.variation}, Step ID: {step_id}, Episode ID: {self.episode_id}"
+        # )
+        # log_info(f"Instruction: {self.instructions}")
+        # log_info(f"Saved batch to {batch_file}")
 
-        # Save keystep with the predicted action
-        keystep_with_action = keystep_real.model_dump()
-        keystep_with_action["action"] = action
-        save_steps_dir = os.path.join(self.save_path, "keysteps")
-        os.makedirs(save_steps_dir, exist_ok=True)
-        np.save(os.path.join(save_steps_dir, f"{step_id}.npy"), keystep_with_action)
+        # # Save keystep with the predicted action
+        # keystep_with_action = keystep_real.model_dump()
+        # keystep_with_action["action"] = action
+        # save_steps_dir = os.path.join(self.save_path, "keysteps")
+        # os.makedirs(save_steps_dir, exist_ok=True)
+        # np.save(os.path.join(save_steps_dir, f"{step_id}.npy"), keystep_with_action)
 
         if not rclpy.ok():
             return None
@@ -258,7 +204,8 @@ class RunPolicyNode(Node):
             self.args.episode_id,
             self.links_bbox,
             self.args.cam_list,
-            self.args.server_addr,
+            self.args.ip,
+            self.args.port,
         )
 
     def run(self):
