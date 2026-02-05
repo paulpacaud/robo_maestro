@@ -39,9 +39,9 @@ class Arguments(tap.Tap):
         "echo_camera",
     ]  # ["echo_camera","foxtrot_camera","golf_camera"]
     arm: str = "left"
-    taskvar: str = "real_put_fruit_in_box+0"
+    taskvar: str = "ur5_put_grapes_and_banana_in_plates"
     ip: str = "127.0.0.1"
-    port: int = 8002
+    port: int = 17000
     episode_id: int = 0
 
     def __init__(self, *args, **kwargs):
@@ -61,18 +61,24 @@ class PolicyServer:
 
     def predict(self, batch):
         log_info(
-            f"Policy server at {self.server_addr}/predict called with batch {batch.keys()}"
+            f"Policy server at {self.server_addr}/get_action called with batch {batch.keys()}"
         )
 
         data = msgpack_numpy.packb(batch)
         options = {
             "pred_rot_type": "euler",
         }
+        log_info(f"Sending POST to {self.server_addr}/get_action ...")
+        log_info(f"Packed batch size: {len(data)} bytes")
         response = requests.post(
-            f"{self.server_addr}/get_action", 
+            f"{self.server_addr}/get_action",
             data={"batch": data, "options": options},
         )
+        log_info(f"Response status: {response.status_code}")
+        log_info(f"Response content length: {len(response.content)} bytes")
+        log_debug(f"Response headers: {dict(response.headers)}")
         output = msgpack_numpy.unpackb(response._content)
+        log_info(f"Unpacked output keys: {list(output.keys())}")
         action = output["action"]
         cache = output.get("cache", None)
 
@@ -159,6 +165,11 @@ class TaskEvaluator:
         batch_file = os.path.join(batch_dir, f"step-{step_id}.msgpack")
         with open(batch_file, "wb") as f:
             f.write(batch_data)
+        log_info(f"Batch: {batch.keys()}")
+        log_info(
+            f"Task: {self.task}, Variation: {self.variation}, Step ID: {step_id}, Episode ID: {self.episode_id}"
+        )
+        log_info(f"Instruction: {self.instructions}")
         log_info(f"Saved batch to {batch_file}")
 
         action, cache = self.policy_server.predict(batch)
@@ -210,7 +221,12 @@ class RunPolicyNode(Node):
             )
         )
 
-        self.task, self.variation = self.args.taskvar.split("+")
+        log_info(f"Keys in taskvars_instructions: {list(taskvars_instructions.keys())}")
+        log_info(f"Using taskvar: {self.args.taskvar}")
+
+        # self.task, self.variation = self.args.taskvar.split("+")
+        self.task = self.args.taskvar
+        self.variation = "0"
         self.instructions = taskvars_instructions[self.args.taskvar]
 
         # Load bbox info

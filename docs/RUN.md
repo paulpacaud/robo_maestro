@@ -21,5 +21,5 @@ cd ~/share/ws
 source install/setup.bash
 
 1st terminal: ros2 launch prl_ur5_run real.launch.py activate_cameras:=true use_sim_time:=false
-2nd terminal: 
+2nd terminal: ros2 launch robo_maestro run_policy.launch.py use_sim_time:=false
 
