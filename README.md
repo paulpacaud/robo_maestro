@@ -22,7 +22,7 @@ cf INSTALL.md
 cf ERROR_CATCH.md
 
 # Contribute
-To add a launch, update setup.py, add the launch to the ./launch folder, then run `colcon build --packages-select robo_maestro`, source ROS, and test
+To add a launch, update setup.py, add the launch to the ./launch folder, then run `colcon build --symlink-install --packages-select robo_maestro`, source ROS, and test
 
 # Usage
 ## Launch the Robot (Real or Sim)

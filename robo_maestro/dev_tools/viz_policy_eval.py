@@ -12,7 +12,7 @@ Usage:
 
     # Visualize with Open3D point cloud viewer (arrow keys to navigate)
     python3 -m robo_maestro.dev_tools.viz_policy_eval \
-        ~/docker_shared/data/run_policy_experiments/ur5_put_grapes_and_banana_in_plates+0_0205T133830/episode_0 \
+        ~/docker_shared/data/run_policy_experiments/ur5_close_drawer+0/episode_0 \
         --viz
 """
 
@@ -124,8 +124,8 @@ def visualize_episode(keysteps: list[dict], episode_dir: str):
         act_grip = action[7] if len(action) > 7 else "N/A"
         print(
             f"  keystep {idx}/{n_keysteps - 1} | \n"
-            f"eef={gripper} | \n"
-            f"action={action}"
+            f"eef={gripper[0]:+.3f}, {gripper[1]:+.3f}, {gripper[2]:+.3f}, {gripper[3]:+.3f}, {gripper[4]:+.3f}, {gripper[5]:+.3f}, {gripper[6]:+.3f}, {gripper[7]:+.3f} | \n"
+            f"action={action[0]:+.3f}, {action[1]:+.3f}, {action[2]:+.3f}, {action[3]:+.3f}, {action[4]:+.3f}, {action[5]:+.3f}, {action[6]:+.3f}, {act_grip}"
         )
 
     def _switch_keystep(vis, new_idx):

@@ -5,6 +5,10 @@ bridge between a remote policy inference server (genrobot3d) and the Paris‑Lab
 3) preprocess the obs to match the input of the remote policy inference server
 4) query the policy over http and get the action + new cache
 5) execute the action on the real robot with env.move()
+
+connect to cleps:
+(you can do it outside the docker)
+ssh -N -L 8080:127.0.0.1:8080 ppacaud@dgx-station.paris.inria.fr
 """
 
 import tap
@@ -39,9 +43,9 @@ class Arguments(tap.Tap):
         "echo_camera",
     ]  # ["echo_camera","foxtrot_camera","golf_camera"]
     arm: str = "left"
-    taskvar: str = "real_put_fruit_in_box+0"
+    taskvar: str = "ur5_close_drawer"
     ip: str = "127.0.0.1"
-    port: int = 8002
+    port: int = 8080
     episode_id: int = 0
 
     def __init__(self, *args, **kwargs):
@@ -66,9 +70,13 @@ class PolicyServer:
 
         data = msgpack_numpy.packb(batch)
         response = requests.post(f"{self.server_addr}/predict", data=data)
+        log_info(
+            f"Received response with status code {response.status_code} from policy server"
+        )
         output = msgpack_numpy.unpackb(response._content)
+        log_info("Unpacked response from policy server")
         action = output["action"]
-        cache = output["cache"]
+        cache = output.get("cache", {})
 
         log_info(f"Received action of shape {action.shape} and cache from server")
 
@@ -112,15 +120,16 @@ class TaskEvaluator:
     ):
         self.env = env
         self.task = task
-        self.variation = variation
+        self.variation = "0"
         self.instructions = instructions
         self.episode_id = episode_id
         self.links_bbox = links_bbox
         self.cam_list = cam_list
+        ts = __import__("datetime").datetime.now().strftime("%m%dT%H%M%S")
         self.save_path = os.path.join(
             DATA_DIR,
             "run_policy_experiments",
-            self.task + "+" + self.variation,
+            self.task + "+" + self.variation + "_" + ts,
             f"episode_{self.episode_id}",
         )
 
@@ -155,8 +164,8 @@ class TaskEvaluator:
             f.write(batch_data)
         log_info(f"Saved batch to {batch_file}")
 
-        # action, cache = self.policy_server.predict(batch)
-        action, cache = self.policy_server.mock_predict(batch, step_id)
+        action, cache = self.policy_server.predict(batch)
+        # action, cache = self.policy_server.mock_predict(batch, step_id)
 
         # Save keystep with the predicted action
         keystep_with_action = keystep_real.model_dump()
@@ -204,7 +213,7 @@ class RunPolicyNode(Node):
             )
         )
 
-        self.task, self.variation = self.args.taskvar.split("+")
+        self.task, self.variation = self.args.taskvar, "0"
         self.instructions = taskvars_instructions[self.args.taskvar]
 
         # Load bbox info

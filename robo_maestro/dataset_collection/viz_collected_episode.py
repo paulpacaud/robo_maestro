@@ -11,7 +11,7 @@ Usage:
     python3 robo_maestro/dataset_collection/viz_collected_episode.py /home/ppacaud/docker_shared/data/ur5_put_grapes_and_banana_in_plates
 
     # Visualize episode 0 (navigate keysteps with arrow keys)
-    python3 -m robo_maestro.dataset_collection.viz_collected_episode /home/ppacaud/docker_shared/data/ur5_stack_yellow_cup_on_pink_cup --viz --episode 0
+    python3 -m robo_maestro.dataset_collection.viz_collected_episode /home/ppacaud/docker_shared/data/ur5_close_drawer --viz --episode 0
 """
 
 import argparse

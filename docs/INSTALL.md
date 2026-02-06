@@ -40,7 +40,7 @@ PYTHONPATH=${PYPLIB}:${PYTHONPATH}
 # Include robo_maestro in the same workspace:
 git clone <this_repo_url>
 cd ~/share/ws
-colcon build --symlink-install --packages-skip robotiq_ft_sensor_hardware
+colcon build --symlink-install --packages-select robo_maestro
 source install/setup.bash
 ```
 
