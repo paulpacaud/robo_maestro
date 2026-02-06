@@ -6,9 +6,12 @@ bridge between a remote policy inference server (genrobot3d) and the Paris‑Lab
 4) query the policy over http and get the action + new cache
 5) execute the action on the real robot with env.move()
 
-connect to cleps:
+connect to dgx:
 (you can do it outside the docker)
 ssh -N -L 8080:127.0.0.1:8080 ppacaud@dgx-station.paris.inria.fr
+
+On the UR5 docker:
+ros2 launch robo_maestro run_policy.launch.py use_sim_time:=false taskvar:="ur5_close_drawer" port:=8002
 """
 
 import tap

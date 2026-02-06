@@ -7,7 +7,10 @@ bridge between a remote policy inference server (genrobot3d) and the Paris‑Lab
 5) execute the action on the real robot with env.move()
 
 connect to cleps:
-ssh -N -v -L 17000:gpu017:17000 cleps -i ~/.ssh/jz_rsa
+ssh -N -v -L 18000:gpu017:18000 cleps -i ~/.ssh/jz_rsa
+
+on the docker:
+ros2 launch robo_maestro run_policy_pointact.launch.py use_sim_time:=false taskvar:="ur5_put_grapes_and_banana_in_plates" port:=18000
 """
 
 import tap

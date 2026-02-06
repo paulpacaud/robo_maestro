@@ -1,0 +1,22 @@
+[0.494s] Invoking command in '/home/ros/share/ws/src/robo_maestro/build/robo_maestro': PS1=\[]0;\u@jazzy-container: \w\]\[[01;34m\]\u@jazzy-container\[[00m\]:\[[01;35m\]\w\[[00m\]$ PYTHONPATH=/home/ros/share/ws/src/robo_maestro/build/robo_maestro/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/ros/share/ws/src/robo_maestro/build/robo_maestro/build --no-deps symlink_data
+[0.697s] running develop
+[0.819s] running egg_info
+[0.830s] writing robo_maestro.egg-info/PKG-INFO
+[0.830s] writing dependency_links to robo_maestro.egg-info/dependency_links.txt
+[0.831s] writing entry points to robo_maestro.egg-info/entry_points.txt
+[0.831s] writing requirements to robo_maestro.egg-info/requires.txt
+[0.831s] writing top-level names to robo_maestro.egg-info/top_level.txt
+[0.854s] reading manifest file 'robo_maestro.egg-info/SOURCES.txt'
+[0.854s] writing manifest file 'robo_maestro.egg-info/SOURCES.txt'
+[0.866s] running build_ext
+[0.866s] Creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/python3.12/site-packages/robo-maestro.egg-link (link to .)
+[0.866s] Installing collect_dataset script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+[0.866s] Installing control_robot_eef script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+[0.866s] Installing read_eef_pose script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+[0.867s] Installing run_policy script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+[0.867s] Installing run_policy_lerobot script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+[0.867s] Installing run_policy_pointact script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+[0.867s] 
+[0.867s] Installed /home/ros/share/ws/src/robo_maestro/build/robo_maestro
+[0.867s] running symlink_data
+[0.889s] Invoked command in '/home/ros/share/ws/src/robo_maestro/build/robo_maestro' returned '0': PS1=\[]0;\u@jazzy-container: \w\]\[[01;34m\]\u@jazzy-container\[[00m\]:\[[01;35m\]\w\[[00m\]$ PYTHONPATH=/home/ros/share/ws/src/robo_maestro/build/robo_maestro/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/ros/share/ws/src/robo_maestro/build/robo_maestro/build --no-deps symlink_data

@@ -1,0 +1,20 @@
+running develop
+running egg_info
+writing robo_maestro.egg-info/PKG-INFO
+writing dependency_links to robo_maestro.egg-info/dependency_links.txt
+writing entry points to robo_maestro.egg-info/entry_points.txt
+writing requirements to robo_maestro.egg-info/requires.txt
+writing top-level names to robo_maestro.egg-info/top_level.txt
+reading manifest file 'robo_maestro.egg-info/SOURCES.txt'
+writing manifest file 'robo_maestro.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/python3.12/site-packages/robo-maestro.egg-link (link to .)
+Installing collect_dataset script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing control_robot_eef script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing read_eef_pose script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing run_policy script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing run_policy_lerobot script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing run_policy_pointact script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+
+Installed /home/ros/share/ws/src/robo_maestro/build/robo_maestro
+running symlink_data

@@ -50,6 +50,8 @@ setup(
         "pygame",
         "lmdb",
         "pydantic>=2.0",
+        "grpcio>=1.50.0",
+        "protobuf>=4.0",
     ],
     zip_safe=True,
     maintainer="Paul Pacaud",
@@ -59,6 +61,7 @@ setup(
     entry_points={
         "console_scripts": [
             "run_policy = robo_maestro.run_policy:main",
+            "run_policy_lerobot = robo_maestro.run_policy_lerobot:main",
             "run_policy_pointact = robo_maestro.run_policy_pointact:main",
             "read_eef_pose = robo_maestro.dev_tools.read_eef_pose:main",
             "control_robot_eef = robo_maestro.dev_tools.control_robot_in_EEF_pose:main",

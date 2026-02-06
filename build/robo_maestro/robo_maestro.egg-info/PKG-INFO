@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: robo_maestro
+Version: 0.0.0
+Summary: robo_maestro: Python Package to interact with Paris Robotics Lab UR5
+Maintainer: Paul Pacaud
+Maintainer-email: paul.pacaud@inria.fr
+License: Apache-2.0
+Requires-Dist: setuptools
+Requires-Dist: torch
+Requires-Dist: torchvision
+Requires-Dist: gymnasium
+Requires-Dist: typed-argument-parser
+Requires-Dist: msgpack-numpy
+Requires-Dist: easydict
+Requires-Dist: scipy
+Requires-Dist: open3d
+Requires-Dist: requests
+Requires-Dist: pygame
+Requires-Dist: lmdb
+Requires-Dist: pydantic>=2.0
+Requires-Dist: grpcio>=1.50.0
+Requires-Dist: protobuf>=4.0

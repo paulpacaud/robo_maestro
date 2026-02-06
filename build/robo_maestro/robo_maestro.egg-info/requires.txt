@@ -1,0 +1,15 @@
+setuptools
+torch
+torchvision
+gymnasium
+typed-argument-parser
+msgpack-numpy
+easydict
+scipy
+open3d
+requests
+pygame
+lmdb
+pydantic>=2.0
+grpcio>=1.50.0
+protobuf>=4.0

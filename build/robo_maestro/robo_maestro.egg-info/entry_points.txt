@@ -1,0 +1,7 @@
+[console_scripts]
+collect_dataset = robo_maestro.dataset_collection.collect_dataset:main
+control_robot_eef = robo_maestro.dev_tools.control_robot_in_EEF_pose:main
+read_eef_pose = robo_maestro.dev_tools.read_eef_pose:main
+run_policy = robo_maestro.run_policy:main
+run_policy_lerobot = robo_maestro.run_policy_lerobot:main
+run_policy_pointact = robo_maestro.run_policy_pointact:main

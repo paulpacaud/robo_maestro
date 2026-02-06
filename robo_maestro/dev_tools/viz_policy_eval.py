@@ -8,7 +8,7 @@ with keys: rgb, pc, gripper, arm_links_info, action.
 Usage:
     # Print info
     python3 -m robo_maestro.dev_tools.viz_policy_eval \
-        ~/docker_shared/data/run_policy_experiments/ur5_put_grapes_and_banana_in_plates+0_0205T125947/episode_0
+        ~/docker_shared/data/run_policy_experiments/ur5_stack_yellow_onto_pink_cup+0_0206T141320/episode_0
 
     # Visualize with Open3D point cloud viewer (arrow keys to navigate)
     python3 -m robo_maestro.dev_tools.viz_policy_eval \

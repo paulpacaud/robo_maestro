@@ -1,0 +1,40 @@
+running develop
+running egg_info
+creating robo_maestro.egg-info
+writing robo_maestro.egg-info/PKG-INFO
+writing dependency_links to robo_maestro.egg-info/dependency_links.txt
+writing entry points to robo_maestro.egg-info/entry_points.txt
+writing requirements to robo_maestro.egg-info/requires.txt
+writing top-level names to robo_maestro.egg-info/top_level.txt
+writing manifest file 'robo_maestro.egg-info/SOURCES.txt'
+reading manifest file 'robo_maestro.egg-info/SOURCES.txt'
+writing manifest file 'robo_maestro.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/python3.12/site-packages/robo-maestro.egg-link (link to .)
+Installing collect_dataset script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing control_robot_eef script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing read_eef_pose script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing run_policy script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing run_policy_lerobot script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+Installing run_policy_pointact script to /home/ros/share/ws/src/robo_maestro/install/robo_maestro/lib/robo_maestro
+
+Installed /home/ros/share/ws/src/robo_maestro/build/robo_maestro
+running symlink_data
+creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/ament_index
+creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/ament_index/resource_index
+creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/ament_index/resource_index/packages
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/resource/robo_maestro -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/ament_index/resource_index/packages
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/package.xml -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro
+creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/launch
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/launch/run_policy.launch.py -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/launch
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/launch/read_eef_pose.launch.py -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/launch
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/launch/control_robot_eef.launch.py -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/launch
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/launch/run_policy_lerobot.launch.py -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/launch
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/launch/run_policy_pointact.launch.py -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/launch
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/launch/collect_dataset.launch.py -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/launch
+creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/config
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/config/planner.yaml -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/config
+creating /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/assets
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/robo_maestro/assets/real_robot_bbox_info.pkl -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/assets
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/robo_maestro/assets/GEMBENCH_taskvars_instructions.json -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/assets
+symbolically linking /home/ros/share/ws/src/robo_maestro/build/robo_maestro/robo_maestro/assets/taskvars_instructions.json -> /home/ros/share/ws/src/robo_maestro/install/robo_maestro/share/robo_maestro/assets

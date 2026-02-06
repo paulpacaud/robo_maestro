@@ -12,6 +12,9 @@ import os
 def launch_setup(context):
     use_sim_time = LaunchConfiguration('use_sim_time', default=True)
     mock = LaunchConfiguration('mock').perform(context).lower() == 'true'
+    taskvar = LaunchConfiguration('taskvar')
+    ip = LaunchConfiguration('ip')
+    port = LaunchConfiguration('port')
 
     # Here we built the moveit_config object
     # This object is used to load the robot description and the planner
@@ -25,10 +28,11 @@ def launch_setup(context):
         .to_moveit_configs()
     )
 
-    # Here we launch the executable
-    node_arguments = ["--ros-args", "--log-level", "WARN"]
+    # Build arguments list
+    arguments = ["--taskvar", taskvar, "--ip", ip, "--port", port]
     if mock:
-        node_arguments = ["--mock"] + node_arguments
+        arguments = ["--mock"] + arguments
+    arguments.extend(["--ros-args", "--log-level", "WARN"])
 
     moveit_py_node = Node(
         name="run_policy_pointact",
@@ -36,7 +40,7 @@ def launch_setup(context):
         executable="run_policy_pointact",
         output="both",
         parameters=[moveit_config.to_dict(), {'use_sim_time': use_sim_time}],
-        arguments=node_arguments,
+        arguments=arguments,
     )
 
     return [
@@ -57,6 +61,27 @@ def generate_launch_description():
             "mock",
             default_value="false",
             description="Use mock policy predictions instead of a real server",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "taskvar",
+            default_value="ur5_put_grapes_and_banana_in_plates",
+            description="Task variant (used for instruction lookup)",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "ip",
+            default_value="127.0.0.1",
+            description="Policy server IP address",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "port",
+            default_value="17000",
+            description="Policy server port",
         )
     )
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])

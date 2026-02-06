@@ -1,0 +1,1 @@
+/home/ros/share/ws/src/robo_maestro/build/robo_maestro/robo_maestro/assets/real_robot_bbox_info.pkl
